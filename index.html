@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Native Mobile Viewport Optimization: viewport-fit=cover covers notch, interactive-widget handles keyboard -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="description" content="Diario de cata personal e inteligente.">
+    <meta name="referrer" content="origin">
+    
+    <!-- PWA / Mobile Capabilites -->
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="KataList">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%230f172a%22%2F%3E%3Cpath%20d%3D%22M5.5%202H18.5C19.0523%202%2019.5%202.44772%2019.5%203V5C19.5%209.97056%2016.4706%2014%2012%2014C7.52944%2014%204.5%209.97056%204.5%205V3C4.5%202.44772%204.94772%202%205.5%202Z%22%20stroke%3D%22%232dd4bf%22%20stroke-width%3D%222%22%2F%3E%3Cpath%20d%3D%22M12%2014V22%22%20stroke%3D%22%232dd4bf%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M8%2022H16%22%20stroke%3D%22%232dd4bf%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M9%206H15%22%20stroke%3D%22%23facc15%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M9%209H15%22%20stroke%3D%22%23facc15%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M9%2012H12%22%20stroke%3D%22%23facc15%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M13%2015L15%2017L19%2013%22%20stroke%3D%22%23facc15%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E">
+
+    <title>KataList - Diario de Cata</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+    <style>
+      :root {
+        --color-primary-500: #3b82f6;
+        --color-primary-600: #2563eb;
+      }
+      /* Native App Feel */
+      body {
+        overscroll-behavior-y: none; /* Prevents pull-to-refresh on Chrome Android */
+        -webkit-tap-highlight-color: transparent; /* Removes grey tap box on iOS */
+      }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .select-none { -webkit-user-select: none; user-select: none; }
+    </style>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['"Playfair Display"', 'serif'],
+            },
+            colors: {
+              primary: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                500: 'var(--color-primary-500)', 
+                600: 'var(--color-primary-600)',
+                700: '#1d4ed8',
+                900: '#1e3a8a',
+              },
+              dark: {
+                800: '#1e293b',
+                900: '#0f172a',
+                950: '#020617',
+              },
+              neon: {
+                pink: '#ff00ff',
+                purple: '#bf00ff',
+                green: '#00ff9d',
+                cyan: '#00e5ff',
+                orange: '#ff9900'
+              }
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.3s ease-in-out',
+              'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              'bounce-in': 'bounceIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'float': 'float 3s ease-in-out infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              slideUp: {
+                '0%': { transform: 'translateY(10px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              bounceIn: {
+                 '0%': { transform: 'scale(0.9)', opacity: '0' },
+                 '100%': { transform: 'scale(1)', opacity: '1' }
+              },
+              float: {
+                  '0%, 100%': { transform: 'translateY(0)' },
+                  '50%': { transform: 'translateY(-10px)' }
+              }
+            }
+          }
+        }
+      }
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.4",
+    "jspdf": "https://aistudiocdn.com/jspdf@^3.0.4",
+    "idb-keyval": "https://aistudiocdn.com/idb-keyval@^6.2.2",
+    "fuse.js": "https://aistudiocdn.com/fuse.js@^7.0.0",
+    "@sqlite.org/sqlite-wasm": "https://aistudiocdn.com/@sqlite.org/sqlite-wasm@^3.51.1-build2"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./index.tsx?v=21.01"></script>
+    <script>
+      // Force remove old service workers in dev/localhost
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  for(let registration of registrations) {
+                      registration.unregister();
+                  }
+              });
+          }
+      } else {
+          // Prod Service Worker with Update Feedback
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+              navigator.serviceWorker.register('./sw.js').then(reg => {
+                console.log('SW registered!', reg);
+                
+                // Check for updates
+                reg.onupdatefound = () => {
+                  const installingWorker = reg.installing;
+                  if (installingWorker == null) return;
+                  installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed') {
+                      if (navigator.serviceWorker.controller) {
+                        // Update available
+                        window.dispatchEvent(new CustomEvent('katalist-sw-update'));
+                      }
+                    }
+                  };
+                };
+              }).catch(err => console.log('SW failed', err));
+              
+              // Handle controller change (refresh page when new sw activates)
+              let refreshing;
+              navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                window.location.reload();
+                refreshing = true;
+              });
+            });
+          }
+      }
+    </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
