@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@google/genai": "latest",
-    "@sqlite.org/sqlite-wasm": "^3.45.1",
+    "@sqlite.org/sqlite-wasm": "latest",
     "idb-keyval": "^6.2.1",
     "jspdf": "^2.5.1",
     "react": "^18.2.0",
