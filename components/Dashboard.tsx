@@ -137,7 +137,7 @@ export const Dashboard = React.memo(() => {
                 </h1>
             </div>
             <div className="flex items-center gap-2 pl-1">
-                <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50 font-mono">v21.04</span>
+                <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50 font-mono">v21.05</span>
                 <span className="w-1 h-1 rounded-full bg-slate-600"></span>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold tracking-widest uppercase opacity-80">Diario & Bodega</p>
             </div>

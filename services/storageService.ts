@@ -47,7 +47,7 @@ export const storageService = {
   init: async (): Promise<void> => {
     try {
       // 1. Try to init SQLite
-      // sqliteService.init now returns FALSE if OPFS is not available, preventing data loss in memory DB
+      // sqliteService.init now returns FALSE if OPFS is not available or times out, preventing data loss or freeze
       const sqliteReady = await sqliteService.init();
       
       if (sqliteReady) {
@@ -335,7 +335,7 @@ export const storageService = {
       categories,
       lists,
       exportedAt: new Date().toISOString(),
-      version: '21.04',
+      version: '21.05',
       type: includeImages ? 'FULL' : 'TEXT_ONLY'
     };
     return JSON.stringify(data, null, 2);

@@ -5,21 +5,17 @@ let db: any = null;
 
 const LOG_TAG = '[SQLite]';
 
-export const sqliteService = {
-  init: async (): Promise<boolean> => {
-    if (db) return true; // Already initialized
-
+// Internal initialization logic
+const initializeInternal = async (): Promise<boolean> => {
     try {
       console.log(`${LOG_TAG} Loading module...`);
       
       let sqlite3;
       try {
           // Attempt to load WASM. If header isolation is missing, this might fail or return a non-OPFS ready instance.
-          // We wrap it to avoid loud unhandled rejections in console for unsupported envs.
           sqlite3 = await sqlite3InitModule({
             print: console.log,
             printErr: (msg: string) => {
-                // Filter out some noisy errors during init check if fallback is available
                 if (msg.includes('OPFS') || msg.includes('headers')) {
                     console.warn(msg);
                 } else {
@@ -28,7 +24,7 @@ export const sqliteService = {
             },
           });
       } catch(loadError) {
-          console.warn(`${LOG_TAG} WASM module failed to load (likely unsupported environment or missing headers). Fallback to IDB.`);
+          console.warn(`${LOG_TAG} WASM module failed to load. Fallback to IDB.`);
           return false;
       }
 
@@ -40,7 +36,6 @@ export const sqliteService = {
         } else {
           console.warn(`${LOG_TAG} OPFS not available.`);
           // CRITICAL: Return false to force fallback to IDB. 
-          // Do NOT use memory DB as it loses data on refresh.
           return false; 
         }
       } catch (e) {
@@ -48,8 +43,7 @@ export const sqliteService = {
         return false;
       }
 
-      // Initialize Tables (Document Store Pattern) with Consistent Schema
-      // Added created_at to ALL tables to support generic getAll sorting
+      // Initialize Tables (Document Store Pattern)
       const tables = ['tastings', 'categories', 'lists'];
       
       db.transaction(() => {
@@ -62,21 +56,19 @@ export const sqliteService = {
                 );
               `);
               
-              // MIGRATION FIX: Ensure created_at exists (for DBs created in previous broken attempts)
+              // MIGRATION FIX: Ensure created_at exists
               try {
-                  // Attempt to select the column. If it fails, add it.
                   db.exec(`SELECT created_at FROM ${table} LIMIT 1`);
               } catch (e) {
-                  console.log(`${LOG_TAG} Migrating schema for ${table}: Adding created_at`);
                   try {
                       db.exec(`ALTER TABLE ${table} ADD COLUMN created_at INTEGER`);
                   } catch(err) {
-                      console.warn("Column might already exist or alter failed", err);
+                      console.warn("Column migration failed or exists", err);
                   }
               }
           });
 
-          // Images table is simpler
+          // Images table
           db.exec(`
             CREATE TABLE IF NOT EXISTS images (
               id TEXT PRIMARY KEY,
@@ -90,6 +82,22 @@ export const sqliteService = {
       console.error(`${LOG_TAG} Initialization failed:`, e);
       return false;
     }
+};
+
+export const sqliteService = {
+  init: async (): Promise<boolean> => {
+    if (db) return true; // Already initialized
+
+    // Race condition: If WASM hangs due to missing headers, fallback after 3 seconds.
+    const timeoutPromise = new Promise<boolean>((resolve) => {
+        setTimeout(() => {
+            console.warn(`${LOG_TAG} Init timed out (3s). Fallback to IDB.`);
+            resolve(false);
+        }, 3000);
+    });
+
+    // Race the actual init against the timeout
+    return Promise.race([initializeInternal(), timeoutPromise]);
   },
 
   // --- GENERIC CRUD ---
@@ -98,7 +106,6 @@ export const sqliteService = {
     if (!db) return [];
     try {
       const result: any[] = [];
-      // Use 'exec' with a callback row for best performance in the WASM wrapper
       db.exec({
         sql: `SELECT body FROM ${table} ORDER BY created_at DESC`,
         rowMode: 'array',
@@ -113,7 +120,7 @@ export const sqliteService = {
       return result;
     } catch (e) {
       console.error(`${LOG_TAG} getAll error in ${table}`, e);
-      // Fallback: Try without ordering if schema is somehow still broken
+      // Fallback query without sorting if schema issues persist
       try {
           const result: any[] = [];
           db.exec({
@@ -148,7 +155,6 @@ export const sqliteService = {
     }
   },
 
-  // Optimized for images (raw text/blob, not JSON wrapped)
   getImage: async (id: string) => {
     if (!db) return null;
     try {
@@ -172,10 +178,8 @@ export const sqliteService = {
     try {
       const id = item.id;
       const body = JSON.stringify(item);
-      // Ensure createdAt exists for the sort column, even if not in JSON body (e.g. categories)
       const createdAt = item.createdAt || Date.now();
 
-      // Upsert logic for standard tables
       db.exec({
           sql: `INSERT INTO ${table}(id, body, created_at) VALUES(?, ?, ?) 
                 ON CONFLICT(id) DO UPDATE SET body=excluded.body, created_at=excluded.created_at`,
@@ -204,7 +208,6 @@ export const sqliteService = {
     });
   },
 
-  // --- UTILS ---
   isEmpty: async () => {
     if (!db) return true;
     try {
@@ -219,7 +222,6 @@ export const sqliteService = {
     }
   },
   
-  // Bulk transaction for migration
   saveBulk: async (table: string, items: any[]) => {
     if (!db || items.length === 0) return;
     try {
