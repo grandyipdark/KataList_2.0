@@ -1,3 +1,4 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -8,7 +9,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
+      // Force empty string if undefined to prevent build issues or literal undefined in code
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || '')
     },
     server: {
       port: 5173,

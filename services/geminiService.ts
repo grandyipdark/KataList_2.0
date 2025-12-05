@@ -1,7 +1,13 @@
 
 import { GoogleGenAI, Type, FunctionDeclaration, Schema } from "@google/genai";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => {
+  const key = process.env.API_KEY;
+  if (!key || key === 'undefined' || key === '') {
+    throw new Error("Falta la API Key. Configúrala en Vercel (Environment Variables).");
+  }
+  return new GoogleGenAI({ apiKey: key });
+};
 
 // Helper to convert Base64 to standard format if needed
 const cleanBase64 = (b64: string) => b64.replace(/^data:image\/(png|jpeg|webp);base64,/, "");
