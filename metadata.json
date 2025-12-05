@@ -1,7 +1,8 @@
+
 {
   "name": "KataList Beta1.0 ",
   "description": "Una aplicación offline para registrar, organizar y consultar notas de cata de bebidas con inteligencia artificial para gestión de imágenes.",
-  "version": "21.07",
+  "version": "21.09",
   "requestFramePermissions": [
     "camera",
     "microphone"

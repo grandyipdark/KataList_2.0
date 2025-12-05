@@ -2,10 +2,20 @@
 import { GoogleGenAI, Type, FunctionDeclaration, Schema } from "@google/genai";
 
 const getAI = () => {
-  const key = process.env.API_KEY;
+  let key = process.env.API_KEY || '';
+  
+  // SANITIZATION: Remove quotes and whitespace
+  key = key.replace(/["']/g, '').trim();
+
   if (!key || key === 'undefined' || key === '') {
-    throw new Error("Falta la API Key. Configúrala en Vercel (Environment Variables).");
+    throw new Error("Falta la API Key. Configúrala en Vercel como 'API_KEY'.");
   }
+
+  // VALIDATION: Check if it looks like a Client ID (starts with numbers)
+  if (/^\d/.test(key)) {
+      throw new Error("Error de Configuración: Has puesto un 'Client ID' (empieza por números) en lugar de una 'API Key'. La clave correcta debe empezar por 'AIza'. Consíguela en aistudio.google.com");
+  }
+
   return new GoogleGenAI({ apiKey: key });
 };
 
@@ -25,6 +35,12 @@ async function retryWrapper<T>(operation: () => Promise<T>, retries = 3, delay =
             await wait(delay);
             return retryWrapper(operation, retries - 1, delay * 2);
         }
+        
+        // Handle Invalid API Key explicitly
+        if (error.status === 400 && error.message?.includes('API key not valid')) {
+             throw new Error("API Key rechazada por Google. Verifica que sea válida y empiece por 'AIza'.");
+        }
+
         throw error;
     }
 }

@@ -175,7 +175,7 @@ export const InsightsView = React.memo(() => {
                     <h2 className="font-bold text-white font-serif text-lg">Insights</h2>
                 </div>
                 <div className="text-[10px] font-bold bg-blue-900/30 text-blue-400 px-2 py-1 rounded-lg border border-blue-500/30">
-                    v21.07
+                    v21.09
                 </div>
             </div>
 
