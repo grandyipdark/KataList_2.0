@@ -15,6 +15,6 @@ export const useFuzzySearch = <T>(
   return useMemo(() => {
     if (!searchQuery || !fuse) return data;
     const results = fuse.search(searchQuery);
-    return results.map(result => result.item);
+    return results.map((result: any) => result.item);
   }, [fuse, searchQuery, data]);
 };

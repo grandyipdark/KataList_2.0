@@ -11,6 +11,7 @@
   "dependencies": {
     "@google/genai": "latest",
     "@sqlite.org/sqlite-wasm": "latest",
+    "fuse.js": "^7.0.0",
     "idb-keyval": "^6.2.1",
     "jspdf": "^2.5.1",
     "react": "^18.2.0",
@@ -18,6 +19,7 @@
     "react-router-dom": "^6.22.3"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@vitejs/plugin-react": "^4.2.1",

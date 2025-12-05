@@ -1,7 +1,7 @@
 
 importScripts('https://unpkg.com/idb-keyval@6.2.1/dist/index.js');
 
-const CACHE_NAME = 'katalist-v21.01';
+const CACHE_NAME = 'katalist-v21.04';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

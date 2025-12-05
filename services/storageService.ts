@@ -1,3 +1,4 @@
+
 import { Tasting, Category, DEFAULT_CATEGORIES, UserList } from '../types';
 import { get, set, del, keys } from 'idb-keyval'; // Mantener para migración y fallback
 import { sqliteService } from './sqliteService';
@@ -334,7 +335,7 @@ export const storageService = {
       categories,
       lists,
       exportedAt: new Date().toISOString(),
-      version: '21.01',
+      version: '21.04',
       type: includeImages ? 'FULL' : 'TEXT_ONLY'
     };
     return JSON.stringify(data, null, 2);
