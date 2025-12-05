@@ -394,8 +394,12 @@ export const generateBeverageImage = async (options: GenImageOptions) => {
         }
     }
     throw new Error("No se generó ninguna imagen.");
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating image:", error);
+    // Parse Google Quota Error
+    if (error.status === 429 || error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error("Has alcanzado el límite de imágenes del plan gratuito. Intenta más tarde o revisa tu cuenta de Google.");
+    }
     throw error;
   }
 };
@@ -423,8 +427,12 @@ export const editBeverageImage = async (imageBase64: string, instruction: string
         }
     }
     throw new Error("No se pudo editar la imagen.");
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error editing image:", error);
+    // Parse Google Quota Error
+    if (error.status === 429 || error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error("Has alcanzado el límite de imágenes del plan gratuito. Intenta más tarde.");
+    }
     throw error;
   }
 };
