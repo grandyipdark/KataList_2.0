@@ -61,7 +61,7 @@ const AppContent = () => {
     if (isInitializing) return (
         <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center">
             <NeonWineIcon className="w-16 h-16 animate-pulse" />
-            <p className="text-slate-400 mt-4 font-serif animate-pulse">Iniciando KataList v21.10...</p>
+            <p className="text-slate-400 mt-4 font-serif animate-pulse">Iniciando KataList v21.11...</p>
         </div>
     );
 

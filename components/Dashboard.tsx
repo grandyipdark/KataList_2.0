@@ -36,7 +36,7 @@ const useCountUp = (end: number, duration: number = 1500) => {
 };
 
 export const Dashboard = React.memo(() => {
-  const { tastings, setView, setSelectedTasting, categories, toggleOledMode, isOledMode, toggleLightMode, isLightMode, exportData, importData, exportCSV, currency, setCurrency, accentColor, setAccentColor, userProfile, isCloudConnected, cloudLastSync, connectCloud, uploadToCloud, downloadFromCloud, showToast, scoreScale, setScoreScale } = useKataContext();
+  const { tastings, setView, setSelectedTasting, categories, toggleOledMode, isOledMode, toggleLightMode, isLightMode, exportData, importData, exportCSV, currency, setCurrency, accentColor, setAccentColor, userProfile, isCloudConnected, cloudLastSync, connectCloud, uploadToCloud, downloadFromCloud, showToast, scoreScale, setScoreScale, installPrompt, installApp } = useKataContext();
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [backupTypeOpen, setBackupTypeOpen] = useState(false);
@@ -137,7 +137,7 @@ export const Dashboard = React.memo(() => {
                 </h1>
             </div>
             <div className="flex items-center gap-2 pl-1">
-                <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50 font-mono">v21.10</span>
+                <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50 font-mono">v21.11</span>
                 <span className="w-1 h-1 rounded-full bg-slate-600"></span>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold tracking-widest uppercase opacity-80">Diario & Bodega</p>
             </div>
@@ -310,6 +310,13 @@ export const Dashboard = React.memo(() => {
                   
                   {/* Scrollable Content */}
                   <div className="overflow-y-auto p-4 space-y-4 scrollbar-hide">
+
+                    {/* INSTALL APP BUTTON */}
+                    {installPrompt && (
+                        <button onClick={() => { installApp(); setSettingsOpen(false); }} className="w-full py-3 mb-2 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 animate-bounce-in active:scale-95 transition">
+                            <Icon name="download" /> Instalar Aplicación
+                        </button>
+                    )}
 
                     {/* 1. HERRAMIENTAS */}
                     <div>

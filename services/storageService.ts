@@ -335,7 +335,7 @@ export const storageService = {
       categories,
       lists,
       exportedAt: new Date().toISOString(),
-      version: '21.10',
+      version: '21.11',
       type: includeImages ? 'FULL' : 'TEXT_ONLY'
     };
     return JSON.stringify(data, null, 2);

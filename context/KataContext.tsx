@@ -22,6 +22,7 @@ interface KataContextType {
   scoreScale: ScoreScaleType; 
   userProfile: UserProfile; showConfetti: boolean;
   isCloudConnected: boolean; cloudLastSync: string | null;
+  installPrompt: any; // PWA Install Prompt
 
   // Actions
   setView: (v: ViewState) => void;
@@ -30,6 +31,7 @@ interface KataContextType {
   toggleLightMode: () => void;
   setCurrency: (c: string) => void; setAccentColor: (c: string) => void;
   setScoreScale: (s: ScoreScaleType) => void; 
+  installApp: () => void;
   
   refreshData: () => Promise<void>; 
   saveTasting: (t: Tasting) => Promise<void>; 
@@ -75,6 +77,7 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currency, setCurrencyState] = useState('$');
   const [accentColor, setAccentColorState] = useState('#3b82f6');
   const [scoreScale, setScoreScaleState] = useState<ScoreScaleType>('10');
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
   
   // Modals & Effects
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -165,6 +168,26 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     init();
   }, [refreshData]);
 
+  // --- PWA Install Listener ---
+  useEffect(() => {
+      const handler = (e: any) => {
+          e.preventDefault();
+          setInstallPrompt(e);
+      };
+      window.addEventListener('beforeinstallprompt', handler);
+      return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const installApp = useCallback(async () => {
+      if (!installPrompt) return;
+      vibrate();
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') {
+          setInstallPrompt(null);
+      }
+  }, [installPrompt]);
+
   // --- Wrappers for Actions with Side Effects (Backup Reminder) ---
   const checkBackupReminder = useCallback(() => {
       setUnsavedChanges(prev => {
@@ -253,10 +276,12 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       view, isInitializing, isOledMode, isLightMode, currency, accentColor, scoreScale,
       userProfile, showConfetti,
       isCloudConnected, cloudLastSync,
+      installPrompt,
       
       setView: setViewWrapper,
       setSelectedTasting,
       toggleOledMode, toggleLightMode, setCurrency, setAccentColor, setScoreScale,
+      installApp,
       
       refreshData,
       saveTasting: saveTastingWrapped,
@@ -283,12 +308,12 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }), [
       tastings, categories, userLists, selectedTasting, compareList,
       view, isInitializing, isOledMode, isLightMode, currency, accentColor, scoreScale,
-      userProfile, showConfetti, isCloudConnected, cloudLastSync,
+      userProfile, showConfetti, isCloudConnected, cloudLastSync, installPrompt,
       setViewWrapper, showToast, saveTastingWrapped, deleteTastingWrapped, duplicateTastingWrapped, 
       duplicateTastingAsVintageWrapped, toggleFavoriteWrapped, updateStock, updateCategoriesWrapped, 
       updateTagsWrapped, renameProducerWrapped, optimizeTagsBulk, mergeTastings, createList, deleteList, 
       addItemsToList, deleteTastingsBulk, importData, exportData, exportCSV, confirmDelete, toggleCompare, 
-      clearCompare, connectCloud, uploadToCloud, downloadFromCloud, setSelectedTasting, refreshData, toggleOledMode, toggleLightMode, setCurrency, setAccentColor, setScoreScale, formatScore, allTags
+      clearCompare, connectCloud, uploadToCloud, downloadFromCloud, setSelectedTasting, refreshData, toggleOledMode, toggleLightMode, setCurrency, setAccentColor, setScoreScale, installApp, formatScore, allTags
   ]);
 
   return (
