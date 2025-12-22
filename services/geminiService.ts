@@ -88,14 +88,13 @@ export const initGuidedTastingChat = () => {
 export const fetchBeverageInfo = async (query: string): Promise<{ data: BeverageData, sources: any[] }> => {
   const ai = getAI();
   
-  // Rule: When using googleSearch, responseMimeType: "application/json" is often unreliable 
-  // or blocked. We ask for a clear JSON block in plain text and extract it.
+  // Note: Search grounding often returns text + citations. We ask for a clear JSON block.
+  // We avoid 'responseMimeType: application/json' here because search models sometimes prepend text.
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Investiga la ficha técnica de: "${query}".
-    Responde ÚNICAMENTE con un objeto JSON dentro de un bloque de código markdown con estos campos exactos:
-    name, producer, variety, category, subcategory, country, region, abv, vintage.
-    Si no encuentras un dato, pon cadena vacía.`,
+    contents: `Search technical data for: "${query}".
+    Return a JSON object with these fields: name, producer, variety, category, subcategory, country, region, abv, vintage.
+    Important: Respond with the JSON object only.`,
     config: {
       tools: [{ googleSearch: {} }]
     }
@@ -105,16 +104,15 @@ export const fetchBeverageInfo = async (query: string): Promise<{ data: Beverage
   let data: BeverageData = { name: query, category: 'Vino' };
   
   try {
-    // Look for JSON block regardless of surrounding text
+    // Advanced Regex to find the JSON block inside potentially complex search responses
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       data = { ...data, ...parsed };
-    } else if (text.trim().startsWith('{')) {
-      data = { ...data, ...JSON.parse(text) };
     }
   } catch (e) {
-    console.warn("Could not parse search response as JSON, using raw text fallback", e);
+    console.error("Critical: Failed to parse search grounding result", e);
+    throw new Error("No se pudo procesar la información de búsqueda.");
   }
 
   const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -146,7 +144,7 @@ export const analyzeLabelFromImage = async (imageBase64: string): Promise<Bevera
     contents: {
       parts: [
         { inlineData: { mimeType: 'image/jpeg', data: cleanBase64(imageBase64) } },
-        { text: "Analiza la etiqueta de esta botella y extrae la ficha técnica en español." }
+        { text: "Analyze this label and extract technical sheet in Spanish." }
       ]
     },
     config: {
@@ -166,8 +164,8 @@ export const optimizeTagList = async (tags: string[]): Promise<TagCorrection[]> 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Unifica duplicados por ortografía o sinónimos en esta lista: ${JSON.stringify(tags)}.
-      Devuelve un array JSON de objetos {original, corrected}.`,
+      contents: `Normalize these tasting tags: ${JSON.stringify(tags)}. Unify spelling/synonyms. 
+      Return an array of {original, corrected}.`,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -195,12 +193,13 @@ export const optimizeTagList = async (tags: string[]): Promise<TagCorrection[]> 
 export const generateBeverageImage = async (options: { prompt: string, aspectRatio: "1:1" | "3:4" | "4:3" | "9:16" | "16:9" }): Promise<string> => {
   const ai = getAI();
   
-  // Rule: DO NOT set responseMimeType for image models.
+  // Prohibited: responseMimeType for image models.
+  // Prompt optimized for high quality catalog look.
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
-    contents: { 
-      parts: [{ text: `Professional studio product photography of ${options.prompt}, elegant lighting, 4k, ultra-realistic, clear details.` }] 
-    },
+    contents: [{ 
+      parts: [{ text: `A professional commercial photograph of ${options.prompt}. Elegant studio lighting, clean background, 4k resolution, ultra-realistic.` }] 
+    }],
     config: { 
       imageConfig: { 
         aspectRatio: options.aspectRatio 
@@ -208,18 +207,16 @@ export const generateBeverageImage = async (options: { prompt: string, aspectRat
     }
   });
 
-  // Iterate to find the actual image part
-  const candidates = response.candidates || [];
-  if (candidates.length > 0) {
-    const parts = candidates[0].content?.parts || [];
-    for (const part of parts) {
+  const candidate = response.candidates?.[0];
+  if (candidate && candidate.content?.parts) {
+    for (const part of candidate.content.parts) {
       if (part.inlineData) {
         return `data:image/png;base64,${part.inlineData.data}`;
       }
     }
   }
   
-  throw new Error("No se encontró ninguna imagen en la respuesta de la IA.");
+  throw new Error("La IA no generó una imagen válida.");
 };
 
 /**
@@ -229,18 +226,17 @@ export const editBeverageImage = async (imageBase64: string, instruction: string
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
-    contents: {
+    contents: [{
       parts: [
         { inlineData: { mimeType: 'image/png', data: cleanBase64(imageBase64) } },
         { text: instruction }
       ]
-    }
+    }]
   });
 
-  const candidates = response.candidates || [];
-  if (candidates.length > 0) {
-    const parts = candidates[0].content?.parts || [];
-    for (const part of parts) {
+  const candidate = response.candidates?.[0];
+  if (candidate && candidate.content?.parts) {
+    for (const part of candidate.content.parts) {
       if (part.inlineData) {
         return `data:image/png;base64,${part.inlineData.data}`;
       }
@@ -256,7 +252,7 @@ export const suggestSubcategories = async (categoryName: string): Promise<string
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Sugiere 5 subcategorías populares para: "${categoryName}". Solo array JSON de strings.`,
+    contents: `Suggest 5 subcategories for beverage category: "${categoryName}". Return JSON array of strings.`,
     config: {
       responseMimeType: 'application/json',
       responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
@@ -272,8 +268,8 @@ export const analyzeTastingNotes = async (text: string, category: string, profil
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Analiza: "${text}". Categoría: "${category}". 
-    Extrae etiquetas y asigna valores 1-5 para: ${profileLabels.join(', ')}. Responde en JSON.`,
+    contents: `Analyze these tasting notes: "${text}". Category: "${category}". 
+    Extract flavor tags and assign values 1-5 for these profiles: ${profileLabels.join(', ')}. Respond with JSON object.`,
     config: { responseMimeType: 'application/json' }
   });
   return JSON.parse(response.text || "{}");
@@ -283,8 +279,8 @@ export const generateReviewFromTags = async (data: any): Promise<string> => {
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Escribe una nota de cata elegante para: ${data.name}. 
-    Características: ${data.tags.join(', ')}.`,
+    contents: `Write an elegant tasting review for: ${data.name}. 
+    Based on these tags: ${data.tags.join(', ')}. Keep it in Spanish.`,
   });
-  return response.text?.trim() || "Sin reseña generada.";
+  return response.text?.trim() || "Reseña no disponible.";
 };
