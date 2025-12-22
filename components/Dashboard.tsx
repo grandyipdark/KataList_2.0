@@ -137,7 +137,7 @@ export const Dashboard = React.memo(() => {
                 </h1>
             </div>
             <div className="flex items-center gap-2 pl-1">
-                <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50 font-mono">v22.02</span>
+                <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50 font-mono">v21.11</span>
                 <span className="w-1 h-1 rounded-full bg-slate-600"></span>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold tracking-widest uppercase opacity-80">Diario & Bodega</p>
             </div>
@@ -267,7 +267,7 @@ export const Dashboard = React.memo(() => {
               </div>
               <div className="text-left leading-tight">
                   <span className="block font-bold text-sm text-slate-900 dark:text-white">A Ciegas</span>
-                  <span className="text-[10px] text-purple-400 dark:text-indigo-200/70">Entrenamiento</span>
+                  <span className="text-[10px] text-purple-400 dark:text-purple-200/70">Entrenamiento</span>
               </div>
           </button>
       </div>
@@ -298,20 +298,27 @@ export const Dashboard = React.memo(() => {
           </div>
       )}
 
-      {/* Settings Modal */}
+      {/* Settings Modal - Better Scrolling & Layout */}
       {settingsOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={() => setSettingsOpen(false)}>
               <div className="bg-white dark:bg-dark-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                  {/* Fixed Header */}
                   <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-800 rounded-t-2xl">
                       <h3 className="text-xl font-serif font-bold text-slate-900 dark:text-white">Configuración</h3>
                       <button onClick={() => setSettingsOpen(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><Icon name="close" className="text-slate-400" /></button>
                   </div>
+                  
+                  {/* Scrollable Content */}
                   <div className="overflow-y-auto p-4 space-y-4 scrollbar-hide">
+
+                    {/* INSTALL APP BUTTON */}
                     {installPrompt && (
                         <button onClick={() => { installApp(); setSettingsOpen(false); }} className="w-full py-3 mb-2 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl font-bold text-sm shadow-lg flex items-center justify-center gap-2 animate-bounce-in active:scale-95 transition">
                             <Icon name="download" /> Instalar Aplicación
                         </button>
                     )}
+
+                    {/* 1. HERRAMIENTAS */}
                     <div>
                         <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Herramientas Extra</h4>
                         <div className="grid grid-cols-2 gap-2">
@@ -319,6 +326,126 @@ export const Dashboard = React.memo(() => {
                             <button onClick={() => { setSettingsOpen(false); setView('MERGE'); }} className="p-3 bg-slate-100 dark:bg-slate-700/30 border border-slate-200 dark:border-slate-600/50 rounded-xl text-xs font-bold text-yellow-600 dark:text-yellow-300 flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-600 transition"><Icon name="merge" /> Fusión</button>
                         </div>
                     </div>
+
+                    {/* 2. NUBE */}
+                    <div>
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Sincronización Nube</h4>
+                        <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-200 dark:border-blue-500/20">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="cloud" className="text-blue-500 dark:text-blue-400" />
+                                <span className="text-xs font-bold text-blue-700 dark:text-blue-100">Google Drive</span>
+                            </div>
+                            
+                            {/* OAuth Diagnostic */}
+                            <div className={`p-2 rounded-lg mb-2 border ${isDynamicDomain ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-500/30' : 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-500/30'}`}>
+                                <div className="flex justify-between items-start mb-1">
+                                    <p className={`text-[9px] font-bold flex items-center gap-1 ${isDynamicDomain ? 'text-red-700 dark:text-red-200' : 'text-yellow-700 dark:text-yellow-200'}`}>
+                                        <Icon name={isDynamicDomain ? "error" : "warning"} className="text-[10px]" /> 
+                                        {isDynamicDomain ? 'Dominio No Soportado' : 'Configurar Google Cloud:'}
+                                    </p>
+                                    <button onClick={handleCopyOrigin} className={`text-[9px] px-2 py-0.5 rounded border font-bold ${isDynamicDomain ? 'bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/40 text-red-700 dark:text-red-200 border-red-200 dark:border-red-500/30' : 'bg-yellow-100 dark:bg-yellow-500/20 hover:bg-yellow-200 dark:hover:bg-yellow-500/40 text-yellow-700 dark:text-yellow-200 border-yellow-200 dark:border-yellow-500/30'}`}>Copiar</button>
+                                </div>
+                                <code className="block bg-black/5 dark:bg-black/50 p-1.5 rounded text-[9px] text-slate-600 dark:text-yellow-100 break-all font-mono select-all">
+                                    {window.location.origin}
+                                </code>
+                            </div>
+
+                            {!isCloudConnected ? (
+                                <button onClick={connectCloud} disabled={isDynamicDomain} className={`w-full py-2 bg-white dark:bg-white text-dark-900 border border-slate-200 dark:border-transparent rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-200 transition ${isDynamicDomain ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <Icon name="login" className="text-sm" /> Conectar
+                                </button>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-[9px] text-slate-500 dark:text-slate-400">
+                                        <span>Último sync:</span>
+                                        <span className="text-slate-700 dark:text-white">{cloudLastSync || 'Nunca'}</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={uploadToCloud} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+                                            <Icon name="cloud_upload" className="text-sm" /> Subir
+                                        </button>
+                                        <button onClick={downloadFromCloud} className="flex-1 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+                                            <Icon name="cloud_download" className="text-sm" /> Restaurar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 3. APARIENCIA */}
+                    <div>
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Apariencia</h4>
+                        <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                            {/* Colors */}
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">Acento</span>
+                                <div className="flex gap-2">
+                                    {themes.map(t => (
+                                        <button key={t.name} onClick={() => setAccentColor(t.color)} className={`w-6 h-6 rounded-full border-2 transition ${accentColor === t.color ? 'border-slate-400 dark:border-white scale-110 shadow-lg' : 'border-transparent opacity-70'}`} style={{ backgroundColor: t.color }} title={t.name}></button>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="h-px bg-slate-200 dark:bg-slate-800 w-full"></div>
+
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">Modo Claro / Oscuro</span>
+                                <button onClick={toggleLightMode} className="w-10 h-5 bg-slate-300 dark:bg-slate-700 rounded-full relative transition-colors"><div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all bg-white shadow-sm ${!isLightMode ? 'left-5' : 'left-0.5'}`}></div></button>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">Negro Puro (OLED)</span>
+                                <button onClick={toggleOledMode} className="w-10 h-5 bg-slate-300 dark:bg-slate-700 rounded-full relative transition-colors"><div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${isOledMode ? 'left-5 bg-white' : 'left-0.5 bg-slate-400'}`}></div></button>
+                            </div>
+
+                            <div className="h-px bg-slate-200 dark:bg-slate-800 w-full"></div>
+
+                            {/* Currency */}
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">Moneda</span>
+                                <div className="flex gap-1">
+                                    {['$', '€', '£', '¥'].map(c => ( <button key={c} onClick={() => setCurrency(c)} className={`w-8 h-6 rounded font-bold text-xs ${currency === c ? 'bg-primary-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-transparent'}`}>{c}</button> ))}
+                                </div>
+                            </div>
+
+                            <div className="h-px bg-slate-200 dark:bg-slate-800 w-full"></div>
+
+                            {/* Score Scale */}
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-600 dark:text-slate-400">Escala</span>
+                                <div className="flex gap-1">
+                                    {[
+                                        { l: '10', v: '10' }, 
+                                        { l: '100', v: '100' }, 
+                                        { l: '★★', v: '5' }
+                                    ].map(s => (
+                                        <button 
+                                            key={s.v} 
+                                            onClick={() => setScoreScale(s.v as ScoreScaleType)} 
+                                            className={`px-2 py-1 rounded font-bold text-[10px] ${scoreScale === s.v ? 'bg-primary-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-transparent'}`}
+                                        >
+                                            {s.l}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 4. DATOS */}
+                    <div>
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Gestión de Datos</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div className="relative">
+                                <button onClick={() => setBackupTypeOpen(!backupTypeOpen)} className="w-full py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-700"><Icon name="download" /> Respaldo</button>
+                                {backupTypeOpen && ( <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-2 shadow-xl animate-slide-up z-20"><button onClick={() => handleBackup(true)} className="w-full text-left p-2 text-xs text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">Completo</button><button onClick={() => handleBackup(false)} className="w-full text-left p-2 text-xs text-slate-800 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">Solo Texto</button></div> )}
+                            </div>
+                            <button onClick={exportCSV} className="w-full py-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-500/30 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-green-100 dark:hover:bg-green-900/30"><Icon name="table_view" /> CSV</button>
+                            <label className="col-span-2 w-full py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 rounded-lg font-bold text-xs flex items-center justify-center gap-2 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700"><Icon name="upload_file" /> Importar Backup JSON<input type="file" hidden accept=".json" onChange={(e) => { if(e.target.files?.[0]) { const r = new FileReader(); r.onload = (ev) => { importData(ev.target?.result as string); setSettingsOpen(false); }; r.readAsText(e.target.files[0]); } }} /></label>
+                        </div>
+                    </div>
+
                   </div>
               </div>
           </div>

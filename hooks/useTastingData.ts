@@ -1,17 +1,18 @@
 
 import { useState, useCallback } from 'react';
-import { Tasting, Category, UserList, DEFAULT_CATEGORIES, ViewState } from '../types';
+import { Tasting, Category, UserList, DEFAULT_CATEGORIES } from '../types';
 import { storageService } from '../services/storageService';
 import { vibrate } from '../utils/helpers';
-import { optimizeTagList, TagCorrection } from '../services/geminiService';
+import { optimizeTagList } from '../services/geminiService';
 
-export const useTastingData = (showToast: (msg: string, type: 'success' | 'error' | 'info') => void, setView: (v: ViewState) => void) => {
+export const useTastingData = (showToast: (msg: string, type: 'success' | 'error' | 'info') => void, setView: (v: any) => void) => {
     const [tastings, setTastings] = useState<Tasting[]>([]);
     const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES);
     const [userLists, setUserLists] = useState<UserList[]>([]);
     const [selectedTasting, setSelectedTasting] = useState<Tasting | null>(null);
     const [compareList, setCompareList] = useState<string[]>([]);
     
+    // --- Basic CRUD ---
     const refreshData = useCallback(async () => {
         const t = await storageService.getTastings();
         const c = await storageService.getCategories();
@@ -47,28 +48,33 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
         showToast("Cata duplicada", 'success');
     }, [refreshData, showToast]);
 
+    // NEW: Smart Duplicate for Vintages
     const duplicateTastingAsVintage = useCallback(async (t: Tasting) => {
         vibrate();
+        // Keep technical data, clear specific instance data
         const newT: Tasting = { 
             ...t, 
             id: Date.now().toString(), 
-            name: t.name, 
-            vintage: '', 
-            price: '', 
-            score: 0, 
-            images: [], 
+            name: t.name, // Keep name, user likely adds year
+            vintage: '', // Clear vintage
+            price: '', // Clear price
+            score: 0, // Reset score
+            images: [], // Clear images
             thumbnail: undefined,
-            notes: '', 
+            notes: '', // Clear specific notes
             visual: '', aroma: '', taste: '',
-            stock: 1, 
+            stock: 1, // Default stock
             openDate: undefined,
             createdAt: Date.now(), 
             updatedAt: Date.now() 
         };
         await storageService.saveTasting(newT);
         await refreshData();
-        setSelectedTasting(newT);
-        setView('NEW');
+        setSelectedTasting(newT); // Select the new one so user can edit immediately
+        setView('NEW'); // Go to edit mode
+        // Navigate handled by wrapper in Context usually, but setting View NEW works with our setViewWrapper logic if it handles ID or we use navigate inside form
+        // Actually, we need to navigate to edit page. The Context wrapper handles 'NEW' -> '/new', but for edit we need logic.
+        // We will return the ID so the caller can navigate.
         showToast("Nueva añada creada. ¡Edítala!", 'success');
         return newT.id;
     }, [refreshData, showToast, setSelectedTasting, setView]);
@@ -92,6 +98,7 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
         if (selectedTasting?.id === t.id) setSelectedTasting(updated);
     }, [refreshData, selectedTasting]);
 
+    // --- Organization & Bulk ---
     const updateCategories = useCallback(async (newCats: Category[]) => {
         await storageService.saveCategories(newCats);
         await refreshData();
@@ -108,6 +115,7 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
             return t;
         });
         
+        // Batch save only changed items could be optimized in service, but iterating here is safe for now
         for (const t of updatedTastings) {
              const original = tastings.find(ot => ot.id === t.id);
              if (original && JSON.stringify(original.tags) !== JSON.stringify(t.tags)) {
@@ -118,14 +126,17 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
         showToast(newTag ? "Renombrada" : "Eliminada", 'success');
     }, [tastings, refreshData, showToast]);
 
+    // NEW: Rename Producer Bulk
     const renameProducer = useCallback(async (oldName: string, newName: string) => {
         vibrate();
         const toUpdate: Tasting[] = [];
+        
         tastings.forEach(t => {
             if (t.producer === oldName) {
                 toUpdate.push({ ...t, producer: newName, updatedAt: Date.now() });
             }
         });
+
         if (toUpdate.length > 0) {
             await storageService.saveTastingsBulk(toUpdate);
             await refreshData();
@@ -145,13 +156,12 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
             if (!corrections || corrections.length === 0) { showToast("La IA dice que todo está perfecto.", "success"); return; }
             
             const map: Record<string, string> = {};
-            // FIX TS7006: Add explicit type to correction item
-            corrections.forEach((c: TagCorrection) => map[c.original] = c.corrected);
+            corrections.forEach(c => map[c.original] = c.corrected);
             
             let changes = 0;
             const tastingsToUpdate: Tasting[] = [];
             
-            tastings.forEach((t: Tasting) => {
+            tastings.forEach(t => {
                 let modified = false;
                 const newTags = t.tags.map(tag => {
                     if (map[tag] && map[tag] !== tag) {
@@ -175,7 +185,7 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
             } else {
                 showToast("La IA no sugirió cambios.", "info");
             }
-        } catch (e) {
+        } catch (e: any) {
             console.error(e);
             showToast("Error al conectar con la IA.", "error");
         }
@@ -189,6 +199,7 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
         const newStock = (target.stock || 0) + (source.stock || 0);
         const mergedImages = Array.from(new Set([...target.images, ...source.images]));
         const mergedTags = Array.from(new Set([...target.tags, ...source.tags]));
+        
         const mergedTasting = { ...target, stock: newStock, images: mergedImages, tags: mergedTags, updatedAt: Date.now() };
         
         await storageService.saveTasting(mergedTasting);
@@ -197,6 +208,7 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
         showToast("Fusión completada", 'success');
     }, [tastings, refreshData, showToast]);
 
+    // --- Lists Management ---
     const createList = useCallback(async (name: string) => {
         const newList: UserList = { id: Date.now().toString(), name, itemIds: [], createdAt: Date.now() };
         await storageService.saveLists([...userLists, newList]);
@@ -226,7 +238,9 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
         showToast(`${ids.length} elementos eliminados`, 'success');
     }, [refreshData, showToast]);
 
+    // --- IO ---
     const exportData = useCallback(async (includeImages = true) => storageService.exportData(includeImages), []);
+    
     const importData = useCallback(async (json: string) => {
         const s = await storageService.importData(json);
         if(s) await refreshData();
@@ -244,6 +258,7 @@ export const useTastingData = (showToast: (msg: string, type: 'success' | 'error
         showToast("CSV generado", 'success');
     }, [showToast]);
 
+    // --- Compare ---
     const toggleCompare = useCallback((id: string) => {
         setCompareList(prev => {
             if (prev.includes(id)) return prev.filter(i => i !== id);
