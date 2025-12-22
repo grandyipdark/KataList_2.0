@@ -121,7 +121,10 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             setIsDirty(true);
             setTasting(prev => ({ ...prev, images: [img, ...prev.images] })); 
             showToast("Imagen generada", "success"); 
-        } catch (e: any) { showToast(`Error: ${e.message}`, "error"); } 
+        } catch (e: any) { 
+            const msg = e.message?.includes('429') ? "Cuota excedida. Espera un momento." : e.message;
+            showToast(msg, "error"); 
+        } 
         setLoadingState('idle'); 
     };
 
@@ -137,7 +140,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                 return { ...prev, images: newImages }; 
             }); 
             showToast("Imagen editada", "success"); 
-        } catch(e: any) { showToast(`Error: ${e.message}`, "error"); } 
+        } catch(e: any) { showToast("No se pudo editar.", "error"); } 
         setLoadingState('idle'); 
     };
     
@@ -148,11 +151,10 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         try { 
             const info = await fetchBeverageInfo(tasting.name); 
             setIsDirty(true);
-            // CORRECCIÓN: info contiene las propiedades directas según geminiService
             setTasting(prev => ({ 
                 ...prev, 
                 ...info,
-                id: prev.id, // proteger campos críticos
+                id: prev.id,
                 images: prev.images,
                 score: prev.score,
                 isFavorite: prev.isFavorite,
@@ -161,7 +163,14 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             })); 
             showToast("Datos completados", "success"); 
         } catch (e: any) { 
-            showToast(`Sin resultados: ${e.message || "revisa el nombre"}`, "error"); 
+            // CLEAN ERROR MESSAGE: Don't show JSON to user
+            let userFriendlyMsg = "Sin resultados.";
+            if (e.message?.includes('429') || e.message?.includes('quota') || e.message?.includes('Límite')) {
+                userFriendlyMsg = "Límite de búsqueda IA alcanzado. Por favor, espera un minuto.";
+            } else if (e.message && !e.message.startsWith('{')) {
+                userFriendlyMsg = e.message;
+            }
+            showToast(userFriendlyMsg, "error"); 
         } 
         setLoadingState('idle'); 
     };
@@ -180,7 +189,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                     setIsDirty(true);
                     setTasting(prev => ({ ...prev, ...data, id: prev.id, images: [compressed, ...prev.images] }));
                     showToast("Datos extraídos", "success");
-                } catch(err: any) { showToast("No se pudo leer la etiqueta", "error"); }
+                } catch(err: any) { showToast("No se pudo leer la etiqueta.", "error"); }
                 setLoadingState('idle');
             }
         };
@@ -202,7 +211,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             setIsDirty(true);
             setTasting(prev => ({ ...prev, tags: Array.from(new Set([...prev.tags, ...(result.tags || [])])), profile: result.profile || prev.profile })); 
             showToast("Notas etiquetadas", "success"); 
-        } catch (e: any) { showToast("Error analizando notas", "error"); } 
+        } catch (e: any) { showToast("Error analizando notas.", "error"); } 
         setLoadingState('idle'); 
     };
 
