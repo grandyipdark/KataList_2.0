@@ -16,11 +16,8 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     const navigate = useNavigate();
     const location = useLocation();
     const { saveTasting, showToast, tastings, selectedTasting } = useKataContext();
-    
-    // Check if we are truly in "New" mode via route
     const isNewMode = location.pathname === '/new';
 
-    // --- STATE ---
     const [tasting, setTasting] = useState<Tasting>(() => {
         if (initialData) return initialData;
         if (!isNewMode && selectedTasting && selectedTasting.id === id) return selectedTasting;
@@ -35,12 +32,9 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
 
     const [activeSection, setActiveSection] = useState<'MEDIA'|'MAIN'|'TECH'|'NOTES'>('MAIN');
     const [loadingState, setLoadingState] = useState<'idle' | 'uploading' | 'analyzing' | 'generating'>('idle');
-    
-    // --- LEVEL 1 UPDATE: Dirty State & Confirmation ---
     const [isDirty, setIsDirty] = useState(false);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
 
-    // Prevent accidental browser closure
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
             if (isDirty) {
@@ -51,45 +45,20 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isDirty]);
-    // --------------------------------------------------
 
-    // --- EFFECT: Check Share Target File (Share intent from other apps) ---
-    useEffect(() => {
-        const checkShared = async () => {
-            const file = await storageService.getSharedFile();
-            if (file) {
-                showToast("Imagen compartida recibida", "info");
-                try {
-                    const compressed = await compressImage(file);
-                    setIsDirty(true);
-                    setTasting(prev => ({ ...prev, images: [compressed, ...prev.images] }));
-                    setActiveSection('MEDIA');
-                } catch(e) {
-                    showToast("Error procesando imagen compartida", "error");
-                }
-            }
-        };
-        if (isNewMode) checkShared();
-    }, [isNewMode, showToast]);
-
-    // --- EFFECT: Draft Autosave (Every 2s if changed) ---
     useEffect(() => {
         if (id) return; 
         const timeout = setTimeout(() => {
-            if (tasting.name || tasting.notes) {
-                localStorage.setItem(DRAFT_KEY, JSON.stringify(tasting));
-            }
+            if (tasting.name || tasting.notes) localStorage.setItem(DRAFT_KEY, JSON.stringify(tasting));
         }, 2000); 
         return () => clearTimeout(timeout);
     }, [tasting, id]);
 
-    // --- EFFECT: Load Images ---
     useEffect(() => {
         if (selectedTasting && !isNewMode && selectedTasting.id === id) {
              const loadImages = async () => {
                 const loaded = await Promise.all(selectedTasting.images.map(img => storageService.getImage(img)));
-                const validLoaded = loaded.filter(Boolean) as string[];
-                setTasting(prev => ({ ...prev, images: validLoaded }));
+                setTasting(prev => ({ ...prev, images: loaded.filter(Boolean) as string[] }));
             };
             loadImages();
         }
@@ -116,38 +85,23 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         return tastings.find(t => t.name.toLowerCase() === tasting.name.toLowerCase() && t.id !== tasting.id);
     }, [tasting.name, tastings, tasting.id]);
 
-    // --- HANDLERS ---
     const handleSave = async () => { 
         if (!tasting.name) return showToast("El nombre es obligatorio", "error"); 
         if (!tasting.category) return showToast("Selecciona una categoría", "error"); 
         setLoadingState('uploading'); 
         await saveTasting({ ...tasting, updatedAt: Date.now() }); 
-        
         localStorage.removeItem(DRAFT_KEY);
-        setIsDirty(false); // Reset dirty flag
+        setIsDirty(false);
         setLoadingState('idle'); 
     };
 
-    const handleCancelWrapped = () => {
-        if (isDirty) {
-            setShowExitConfirm(true);
-        } else {
-            proceedCancel();
-        }
-    };
+    const handleCancelWrapped = () => isDirty ? setShowExitConfirm(true) : proceedCancel();
 
     const proceedCancel = () => {
         setIsDirty(false);
         setShowExitConfirm(false);
-        if (onCancel) {
-            onCancel();
-            return;
-        }
-        if (id) {
-            navigate(`/tasting/${id}`);
-        } else {
-            navigate('/', { replace: true });
-        }
+        if (onCancel) return onCancel();
+        id ? navigate(`/tasting/${id}`) : navigate('/', { replace: true });
     };
 
     const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -156,23 +110,18 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                 const compressed = await compressImage(e.target.files[0]);
                 setIsDirty(true);
                 setTasting(prev => ({ ...prev, images: [compressed, ...prev.images] }));
-            } catch (err) {
-                showToast("Error procesando imagen", "error");
-            }
+            } catch (err) { showToast("Error procesando imagen", "error"); }
         }
     };
 
     const handleGenImage = async (prompt: string) => { 
-        const promptToUse = prompt || `${tasting.name} ${tasting.category} ${tasting.subcategory}`; 
         setLoadingState('generating'); 
         try { 
-            const img = await generateBeverageImage({ prompt: promptToUse, aspectRatio: '1:1' }); 
+            const img = await generateBeverageImage({ prompt: prompt || tasting.name, aspectRatio: '1:1' }); 
             setIsDirty(true);
             setTasting(prev => ({ ...prev, images: [img, ...prev.images] })); 
             showToast("Imagen generada", "success"); 
-        } catch (e: any) { 
-            showToast(`Vuelve a intentarlo. ${e.message || "Error generando imagen"}`, "error"); 
-        } 
+        } catch (e: any) { showToast(`Error: ${e.message}`, "error"); } 
         setLoadingState('idle'); 
     };
 
@@ -188,9 +137,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                 return { ...prev, images: newImages }; 
             }); 
             showToast("Imagen editada", "success"); 
-        } catch(e: any) { 
-            showToast(`Vuelve a intentarlo. ${e.message || "Error editando imagen"}`, "error"); 
-        } 
+        } catch(e: any) { showToast(`Error: ${e.message}`, "error"); } 
         setLoadingState('idle'); 
     };
     
@@ -201,10 +148,20 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         try { 
             const info = await fetchBeverageInfo(tasting.name); 
             setIsDirty(true);
-            setTasting(prev => ({ ...prev, ...info, id: prev.id, images: prev.images, tags: prev.tags, score: prev.score, isFavorite: prev.isFavorite, profile: prev.profile, stock: prev.stock, isWishlist: prev.isWishlist })); 
+            // CORRECCIÓN: info contiene las propiedades directas según geminiService
+            setTasting(prev => ({ 
+                ...prev, 
+                ...info,
+                id: prev.id, // proteger campos críticos
+                images: prev.images,
+                score: prev.score,
+                isFavorite: prev.isFavorite,
+                stock: prev.stock,
+                createdAt: prev.createdAt
+            })); 
             showToast("Datos completados", "success"); 
         } catch (e: any) { 
-            showToast(`Vuelve a intentarlo. ${e.message || "No se encontró información"}`, "error"); 
+            showToast(`Sin resultados: ${e.message || "revisa el nombre"}`, "error"); 
         } 
         setLoadingState('idle'); 
     };
@@ -217,19 +174,13 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         input.onchange = async (e: any) => {
             if (e.target.files?.[0]) {
                 setLoadingState('analyzing');
-                showToast("Procesando foto...", "info");
                 try {
                     const compressed = await compressImage(e.target.files[0]);
-                    setTasting(prev => ({ ...prev, images: [compressed, ...prev.images] }));
-                    
-                    showToast("Analizando etiqueta...", "info");
                     const data = await analyzeLabelFromImage(compressed);
                     setIsDirty(true);
                     setTasting(prev => ({ ...prev, ...data, id: prev.id, images: [compressed, ...prev.images] }));
                     showToast("Datos extraídos", "success");
-                } catch(err: any) {
-                    showToast(`Vuelve a intentarlo. ${err.message || "No se pudo leer la etiqueta"}`, "error");
-                }
+                } catch(err: any) { showToast("No se pudo leer la etiqueta", "error"); }
                 setLoadingState('idle');
             }
         };
@@ -238,76 +189,49 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     
     const handleDictation = (field: keyof Tasting, text: string) => { 
         setIsDirty(true);
-        setTasting(prev => { const current = (prev[field] as string) || ''; const separator = current.length > 0 && !current.endsWith(' ') ? ' ' : ''; return { ...prev, [field]: current + separator + text }; }); 
+        setTasting(prev => { const cur = (prev[field] as string) || ''; const sep = cur.length > 0 && !cur.endsWith(' ') ? ' ' : ''; return { ...prev, [field]: cur + sep + text }; }); 
     };
     
     const handleAnalyzeNotes = async () => { 
         const fullText = `${tasting.visual} ${tasting.aroma} ${tasting.taste} ${tasting.notes}`; 
         if (fullText.trim().length < 10) return showToast("Escribe más notas primero.", "error"); 
         setLoadingState('analyzing'); 
-        showToast("Interpretando notas...", "info"); 
         try { 
-            const { getProfileLabels } = await import('../utils/helpers');
             const labels = getProfileLabels(tasting.category); 
             const result = await analyzeTastingNotes(fullText, tasting.category, labels); 
-            const newTags = Array.from(new Set([...tasting.tags, ...result.tags])); 
             setIsDirty(true);
-            setTasting(prev => ({ ...prev, tags: newTags, profile: result.profile || prev.profile })); 
+            setTasting(prev => ({ ...prev, tags: Array.from(new Set([...prev.tags, ...(result.tags || [])])), profile: result.profile || prev.profile })); 
             showToast("Notas etiquetadas", "success"); 
-        } catch (e: any) { 
-            showToast(`Vuelve a intentarlo. ${e.message || "Error analizando notas"}`, "error"); 
-        } 
+        } catch (e: any) { showToast("Error analizando notas", "error"); } 
         setLoadingState('idle'); 
-    };
-
-    const getLoadingText = () => {
-        if (loadingState === 'uploading') return 'Guardando...';
-        if (loadingState === 'analyzing') return 'IA Pensando...';
-        if (loadingState === 'generating') return 'Creando Imagen...';
-        return 'Guardar';
     };
 
     return (
         <div className="flex flex-col h-full w-full bg-dark-900">
-            {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-dark-900/95 backdrop-blur z-10 shrink-0">
-                <button onClick={handleCancelWrapped} className="text-slate-400 font-medium active:scale-95 transition-transform">Cancelar</button>
-                <div className="flex gap-2">
-                    <button onClick={handleScanLabel} className="bg-slate-800 text-primary-500 px-3 py-1 rounded-full text-xs font-bold border border-slate-700 flex items-center gap-1 active:scale-95 transition"><Icon name="document_scanner" className="text-sm" /> Escanear</button>
-                </div>
+                <button onClick={handleCancelWrapped} className="text-slate-400 font-medium active:scale-95 transition">Cancelar</button>
+                <button onClick={handleScanLabel} className="bg-slate-800 text-primary-500 px-3 py-1 rounded-full text-xs font-bold border border-slate-700 flex items-center gap-1 active:scale-95 transition"><Icon name="document_scanner" className="text-sm" /> Escanear</button>
                 <button onClick={handleSave} disabled={loadingState !== 'idle'} className="text-primary-500 font-bold disabled:opacity-50 min-w-[60px] text-right">
-                    {loadingState !== 'idle' ? getLoadingText() : 'Guardar'}
+                    {loadingState === 'uploading' ? '...' : 'Guardar'}
                 </button>
             </div>
 
-            {/* Content using Modular Sections */}
             <div className="flex-1 overflow-y-auto px-4 pb-24 pt-4 space-y-4 w-full">
-                
                 <AccordionSection title="Multimedia" icon="image" isOpen={activeSection === 'MEDIA'} onToggle={() => toggleSection('MEDIA')}>
                     <MediaSection tasting={tasting} setTasting={setTasting} handleFile={handleFile} handleGenImage={handleGenImage} handleEditImage={handleEditImage} isLoading={loadingState !== 'idle'} />
                 </AccordionSection>
-
                 <AccordionSection title="Datos Principales" icon="info" isOpen={activeSection === 'MAIN'} onToggle={() => toggleSection('MAIN')}>
                     <MainSection tasting={tasting} handleChange={handleChange} handleAutoFill={handleAutoFill} isLoading={loadingState !== 'idle'} possibleDuplicate={possibleDuplicate} />
                 </AccordionSection>
-
                 <AccordionSection title="Detalles Técnicos" icon="science" isOpen={activeSection === 'TECH'} onToggle={() => toggleSection('TECH')}>
                     <TechSection tasting={tasting} handleChange={handleChange} />
                 </AccordionSection>
-
                 <AccordionSection title="Notas & Perfil" icon="edit_note" isOpen={activeSection === 'NOTES'} onToggle={() => toggleSection('NOTES')}>
                     <SensorySection tasting={tasting} handleChange={handleChange} handleProfileChange={handleProfileChange} handleAnalyzeNotes={handleAnalyzeNotes} handleDictation={handleDictation} isLoading={loadingState !== 'idle'} />
                 </AccordionSection>
-
             </div>
 
-            <ConfirmModal 
-                isOpen={showExitConfirm} 
-                title="Cambios sin guardar" 
-                message="¿Estás seguro de que quieres salir? Perderás los cambios no guardados." 
-                onConfirm={proceedCancel} 
-                onCancel={() => setShowExitConfirm(false)} 
-            />
+            <ConfirmModal isOpen={showExitConfirm} title="Cambios sin guardar" message="¿Estás seguro de que quieres salir?" onConfirm={proceedCancel} onCancel={() => setShowExitConfirm(false)} />
         </div>
     );
 });

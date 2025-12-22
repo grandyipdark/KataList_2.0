@@ -25,15 +25,12 @@ const MixologyView = React.lazy(() => import('./components/MixologyView').then(m
 // Smart Skeleton Loader based on Route
 const SmartLoader = () => {
     const location = useLocation();
-    
-    // Determine which skeleton to show based on path
     if (location.pathname === '/') return <SkeletonDashboard />;
     if (location.pathname === '/search') return <div className="p-4 space-y-4">{[...Array(6)].map((_,i) => <SkeletonListItem key={i} />)}</div>;
     if (location.pathname.startsWith('/tasting/')) return <SkeletonDetail />;
     if (location.pathname === '/chef') return <SkeletonChef />;
     if (location.pathname === '/profile') return <div className="p-4 space-y-6"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-24 rounded-xl" /></div>;
     
-    // Generic Fallback
     return (
         <div className="h-full flex flex-col items-center justify-center p-10 animate-fade-in">
             <NeonWineIcon className="w-12 h-12 animate-pulse" />
@@ -47,21 +44,18 @@ const AppContent = () => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    // Force Home on startup to prevent getting stuck in sub-views
     useEffect(() => {
         if (!isInitializing) {
-            // Only redirect if we are NOT at root and it's the initial mount logic
-            if (location.pathname !== '/') {
+            if (location.pathname !== '/' && location.pathname === '') {
                 navigate('/', { replace: true });
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isInitializing]); 
 
     if (isInitializing) return (
         <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center">
             <NeonWineIcon className="w-16 h-16 animate-pulse" />
-            <p className="text-slate-400 mt-4 font-serif animate-pulse">Iniciando KataList v21.11...</p>
+            <p className="text-slate-400 mt-4 font-serif animate-pulse">Iniciando KataList v22.06...</p>
         </div>
     );
 
@@ -76,8 +70,6 @@ const AppContent = () => {
                     <Route path="/tasting/:id" element={<TastingDetail />} />
                     <Route path="/categories" element={<CategoriesManager />} />
                     <Route path="/chat" element={<EauxDeVieChat />} />
-                    
-                    {/* Lazy Routes */}
                     <Route path="/guided" element={<GuidedTasting />} />
                     <Route path="/compare" element={<CompareView />} />
                     <Route path="/insights" element={<InsightsView />} />
@@ -87,7 +79,6 @@ const AppContent = () => {
                     <Route path="/merge" element={<MergeTool />} />
                     <Route path="/map" element={<MapView />} />
                     <Route path="/mixology" element={<MixologyView />} />
-                    
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </Suspense>
