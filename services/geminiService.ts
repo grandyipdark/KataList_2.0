@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, FunctionDeclaration, Schema } from "@google/genai";
+import { GoogleGenAI, Type, Schema } from "@google/genai";
 
 const getAI = () => {
   let key = process.env.API_KEY || '';
@@ -8,12 +8,7 @@ const getAI = () => {
   key = key.replace(/["']/g, '').trim();
 
   if (!key || key === 'undefined' || key === '') {
-    throw new Error("Falta la API Key. Configúrala en Vercel como 'API_KEY'.");
-  }
-
-  // VALIDATION: Check if it looks like a Client ID (starts with numbers)
-  if (/^\d/.test(key)) {
-      throw new Error("Error de Configuración: Has puesto un 'Client ID' (empieza por números) en lugar de una 'API Key'. La clave correcta debe empezar por 'AIza'. Consíguela en aistudio.google.com");
+    throw new Error("Falta la API Key. Configúrala en el entorno.");
   }
 
   return new GoogleGenAI({ apiKey: key });
@@ -29,18 +24,10 @@ async function retryWrapper<T>(operation: () => Promise<T>, retries = 3, delay =
     try {
         return await operation();
     } catch (error: any) {
-        // Retry on 429 (Too Many Requests) or 503 (Service Unavailable)
         if (retries > 0 && (error.status === 429 || error.status === 503 || error.message?.includes('429') || error.message?.includes('503'))) {
-            console.warn(`Gemini busy, retrying in ${delay}ms... (${retries} left)`);
             await wait(delay);
             return retryWrapper(operation, retries - 1, delay * 2);
         }
-        
-        // Handle Invalid API Key explicitly
-        if (error.status === 400 && error.message?.includes('API key not valid')) {
-             throw new Error("API Key rechazada por Google. Verifica que sea válida y empiece por 'AIza'.");
-        }
-
         throw error;
     }
 }
@@ -56,71 +43,34 @@ export const initChatWithEauxDeVie = (inventorySummary?: string) => {
       Reglas de personalidad:
       1. Tono: Profesional, apasionado, cálido y culto.
       2. Idioma: Español fluido.
-      3. Respuestas: Concisas pero informativas. Usa listas (bullet points) cuando sugieras maridajes. Usa Markdown para formatear negritas y listas.
-      4. Conocimiento: Eres experto en análisis sensorial (vista, olfato, gusto).
-      
-      Si te preguntan quién eres, preséntate como "Eaux-de-Vie, tu sommelier personal en KataList".`;
+      3. Respuestas: Concisas pero informativas. Usa listas. Usa Markdown.
+      4. Conocimiento: Eres experto en análisis sensorial.`;
 
   if (inventorySummary) {
       systemInstruction += `\n\nCONTEXTO GENERAL DE BODEGA:\n${inventorySummary.substring(0, 1000)}... (Resumen)`;
   }
 
   return ai.chats.create({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     config: { systemInstruction }
   });
 };
 
 /**
- * Initialize Guided Tasting Chat (Interview Mode)
+ * Initialize Guided Tasting Chat
  */
 export const initGuidedTastingChat = () => {
   const ai = getAI();
   return ai.chats.create({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     config: {
-      systemInstruction: `Eres un experto sommelier que realiza una entrevista guiada para crear una ficha de cata.
-      Tu objetivo es hacer preguntas una por una al usuario para recopilar información sobre la bebida que está probando.
-      
-      Información necesaria:
-      1. Nombre de la bebida
-      2. Categoría (Vino, Cerveza, Whisky, etc.)
-      3. Subcategoría (si aplica)
-      4. País / Región
-      5. ABV (Graduación alcohólica)
-      6. Notas visuales (color, apariencia)
-      7. Notas olfativas (aroma)
-      8. Notas gustativas (sabor, cuerpo, final)
-      
-      Comienza saludando y preguntando qué está bebiendo.
-      Haz preguntas cortas y amables.
-      
-      Cuando hayas recopilado suficiente información, GENERA UN BLOQUE JSON al final de tu respuesta con el siguiente formato, encerrado en tres backticks y con la etiqueta json:
-      \`\`\`json
-      {
-        "name": "...",
-        "producer": "...",
-        "variety": "...",
-        "category": "...",
-        "subcategory": "...",
-        "country": "...",
-        "region": "...",
-        "abv": "...",
-        "visual": "...",
-        "aroma": "...",
-        "taste": "...",
-        "notes": "...",
-        "vintage": "..."
-      }
-      \`\`\`
-      
-      No inventes datos si el usuario no los sabe, déjalos en blanco o pon "N/A".`,
+      systemInstruction: `Eres un experto sommelier que realiza una entrevista guiada. Recopila: nombre, categoría, subcategoría, país, región, ABV, notas visuales, olfativas y gustativas. Al final genera un bloque JSON.`,
     }
   });
 };
 
 /**
- * Analyze Label Image (OCR/Vision) - STRICT SCHEMA
+ * Analyze Label Image (OCR/Vision)
  */
 export const analyzeLabelFromImage = async (imageBase64: string) => {
   const ai = getAI();
@@ -129,14 +79,14 @@ export const analyzeLabelFromImage = async (imageBase64: string) => {
     type: Type.OBJECT,
     properties: {
       name: { type: Type.STRING, description: "Nombre completo de la bebida" },
-      producer: { type: Type.STRING, description: "Nombre de la Bodega, Destilería o Productor" },
-      variety: { type: Type.STRING, description: "Variedad de uva o materia prima" },
-      category: { type: Type.STRING, description: "Categoría general (Vino, Cerveza, Whisky, Ron, Gin, etc)" },
-      subcategory: { type: Type.STRING, description: "Tipo específico (ej: Rioja, IPA, Single Malt)" },
-      country: { type: Type.STRING, description: "País de origen en Español" },
-      region: { type: Type.STRING, description: "Región o Denominación de Origen" },
-      abv: { type: Type.STRING, description: "Graduación alcohólica (solo el número, ej '13.5')" },
-      vintage: { type: Type.STRING, description: "Año de cosecha (si aplica)" }
+      producer: { type: Type.STRING, description: "Marca/Productor" },
+      variety: { type: Type.STRING, description: "Variedad principal" },
+      category: { type: Type.STRING, description: "Categoría general" },
+      subcategory: { type: Type.STRING, description: "Estilo específico" },
+      country: { type: Type.STRING, description: "País" },
+      region: { type: Type.STRING, description: "Región" },
+      abv: { type: Type.STRING, description: "Graduación (solo número)" },
+      vintage: { type: Type.STRING, description: "Año" }
     },
     required: ["name", "category"]
   };
@@ -144,11 +94,11 @@ export const analyzeLabelFromImage = async (imageBase64: string) => {
   try {
     return await retryWrapper(async () => {
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-2.5-flash-lite-latest',
           contents: {
             parts: [
               { inlineData: { mimeType: 'image/jpeg', data: cleanBase64(imageBase64) } },
-              { text: `Analiza esta etiqueta de bebida. Extrae la información técnica. Traduce los valores al ESPAÑOL.` }
+              { text: `Analiza esta etiqueta y extrae datos técnicos en ESPAÑOL.` }
             ]
           },
           config: {
@@ -156,8 +106,7 @@ export const analyzeLabelFromImage = async (imageBase64: string) => {
             responseSchema: labelSchema
           }
         });
-        const text = response.text || "{}";
-        return JSON.parse(text);
+        return JSON.parse(response.text || "{}");
     });
   } catch (error) {
     console.error("Error analyzing label:", error);
@@ -171,46 +120,42 @@ export const analyzeLabelFromImage = async (imageBase64: string) => {
 export const fetchBeverageInfo = async (query: string) => {
   const ai = getAI();
   
+  const beverageSchema: Schema = {
+    type: Type.OBJECT,
+    properties: {
+      name: { type: Type.STRING },
+      producer: { type: Type.STRING },
+      variety: { type: Type.STRING },
+      category: { type: Type.STRING },
+      subcategory: { type: Type.STRING },
+      country: { type: Type.STRING },
+      region: { type: Type.STRING },
+      abv: { type: Type.STRING },
+      vintage: { type: Type.STRING }
+    },
+    required: ["name", "category"]
+  };
+
   try {
     return await retryWrapper(async () => {
         const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: `Busca información técnica detallada sobre la bebida "${query}".
-          
-          Devuelve SOLAMENTE un JSON válido con esta estructura, sin texto introductorio ni markdown:
-          {
-            "name": "Nombre oficial",
-            "producer": "Productor",
-            "variety": "Variedad",
-            "category": "Categoría",
-            "subcategory": "Subcategoría",
-            "country": "País",
-            "region": "Región",
-            "abv": "ABV",
-            "visual": "Notas visuales",
-            "aroma": "Notas de aroma",
-            "taste": "Notas de sabor",
-            "description": "Breve descripción"
-          }
-          
-          Responde SIEMPRE en ESPAÑOL.`,
+          model: 'gemini-3-flash-preview',
+          contents: `Investiga y extrae la ficha técnica oficial de la bebida: "${query}".`,
           config: {
             tools: [{ googleSearch: {} }],
+            responseMimeType: 'application/json',
+            responseSchema: beverageSchema
           }
         });
         
-        let text = response.text || "{}";
-        
-        // Remove markdown block symbols
-        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        
-        // Safety: Extract the first JSON object found if there's extra conversational text
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            text = jsonMatch[0];
-        }
+        const data = JSON.parse(response.text || "{}");
+        // Extract grounding sources as required by rules
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        const sources = chunks
+            .map((c: any) => ({ uri: c.web?.uri, title: c.web?.title }))
+            .filter((s: any) => s.uri);
 
-        return JSON.parse(text);
+        return { data, sources };
     });
   } catch (error) {
     console.error("Error fetching beverage info:", error);
@@ -218,201 +163,82 @@ export const fetchBeverageInfo = async (query: string) => {
   }
 };
 
-/**
- * Suggest Subcategories
- */
 export const suggestSubcategories = async (categoryName: string): Promise<string[]> => {
   const ai = getAI();
   try {
-    return await retryWrapper(async () => {
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash', 
-          contents: `For the beverage category "${categoryName}", list 5 common subcategories or styles in English.`,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-            }
-          }
-        });
-        let text = response.text || "[]";
-        return JSON.parse(text);
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview', 
+      contents: `Para "${categoryName}", lista 5 subcategorías comunes. JSON array.`,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: { type: Type.ARRAY, items: { type: Type.STRING } }
+      }
     });
-  } catch (error) {
-    console.error("Error suggesting subcategories:", error);
-    return [];
-  }
+    return JSON.parse(response.text || "[]");
+  } catch (error) { return []; }
 };
 
-/**
- * Optimize Tag List
- */
-export const optimizeTagList = async (tags: string[]): Promise<{ original: string, corrected: string }[]> => {
+export const optimizeTagList = async (tags: string[]) => {
     const ai = getAI();
-    const uniqueTags = Array.from(new Set(tags));
-    
-    const schema: Schema = {
-        type: Type.OBJECT,
-        properties: {
-            corrections: {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        original: { type: Type.STRING },
-                        corrected: { type: Type.STRING }
-                    }
-                }
-            }
-        }
-    };
-
     try {
-        return await retryWrapper(async () => {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash', 
-                contents: `Analiza la lista de etiquetas: ${JSON.stringify(uniqueTags)}.
-                Genera correcciones para: Acentos, Title Case y Plurales.
-                Devuelve JSON.`,
-                config: {
-                    responseMimeType: 'application/json',
-                    responseSchema: schema
-                }
-            });
-            const text = response.text || "{}";
-            const data = JSON.parse(text);
-            return data.corrections || [];
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview', 
+            contents: `Corrige y unifica estas etiquetas: ${JSON.stringify(tags)}. Devuelve JSON {corrections: [{original, corrected}]}.`,
+            config: { responseMimeType: 'application/json' }
         });
-    } catch (e) {
-        return [];
-    }
+        const data = JSON.parse(response.text || "{}");
+        return data.corrections || [];
+    } catch (e) { return []; }
 }
 
-/**
- * Analyze free text notes - STRICT SCHEMA
- */
-export const analyzeTastingNotes = async (
-    text: string, 
-    category: string, 
-    profileLabels: string[]
-): Promise<{ tags: string[], profile?: any }> => {
+export const analyzeTastingNotes = async (text: string, category: string, profileLabels: string[]) => {
     const ai = getAI();
-    
-    const analysisSchema: Schema = {
-        type: Type.OBJECT,
-        properties: {
-            tags: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "Lista de 5-8 etiquetas de sabor descriptivas EN ESPAÑOL, normalizadas en Title Case (ej: 'Frutos Rojos', 'Madera', 'Cítrico', 'Vainilla')."
-            },
-            profile: {
-                type: Type.OBJECT,
-                properties: {
-                    p1: { type: Type.NUMBER, description: `Nivel de 1-5 para ${profileLabels[0]}` },
-                    p2: { type: Type.NUMBER, description: `Nivel de 1-5 para ${profileLabels[1]}` },
-                    p3: { type: Type.NUMBER, description: `Nivel de 1-5 para ${profileLabels[2]}` },
-                    p4: { type: Type.NUMBER, description: `Nivel de 1-5 para ${profileLabels[3]}` },
-                    p5: { type: Type.NUMBER, description: `Nivel de 1-5 para ${profileLabels[4]}` }
-                },
-                required: ["p1", "p2", "p3", "p4", "p5"]
-            }
-        },
-        required: ["tags", "profile"]
-    };
-
     try {
-        return await retryWrapper(async () => {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: `Analiza las siguientes notas de cata para la bebida categoría "${category}": "${text}". 
-                Tu tarea es extraer etiquetas (tags) de sabor/aroma y estimar el perfil numérico.
-                IMPORTANTE: Las etiquetas deben estar ESTRICTAMENTE EN ESPAÑOL.`,
-                config: {
-                    responseMimeType: 'application/json',
-                    responseSchema: analysisSchema
-                }
-            });
-            return JSON.parse(response.text || "{}");
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Analiza: "${text}". Categoría: "${category}". Extrae tags y perfil 1-5 para ${profileLabels.join(',')}. JSON.`,
+            config: { responseMimeType: 'application/json' }
         });
-    } catch (error) {
-        console.error("Error analyzing notes:", error);
-        return { tags: [] };
-    }
+        return JSON.parse(response.text || "{}");
+    } catch (error) { return { tags: [] }; }
 };
 
-/**
- * Generate Review from Tags (Reverse AI)
- */
 export const generateReviewFromTags = async (data: any) => {
     const ai = getAI();
-    const { name, category, subcategory, tags, profile, score } = data;
-    
     try {
-        return await retryWrapper(async () => {
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: `Actúa como un sommelier experto y escribe una nota de cata breve, poética y evocadora (máximo 60 palabras) para esta bebida:
-                - Nombre: ${name}
-                - Tipo: ${category} ${subcategory}
-                - Etiquetas de sabor: ${tags.join(', ')}
-                - Perfil estructural (1-5): ${JSON.stringify(profile)}
-                - Puntuación: ${score}/10
-                
-                Escribe en PRIMERA PERSONA ("En nariz percibo...", "En boca es..."). Sé creativo pero coherente con los datos.`,
-            });
-            return response.text?.trim() || "";
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Escribe nota de cata para: ${data.name} (${data.category}). Tags: ${data.tags.join(', ')}.`,
         });
-    } catch (error) {
-        console.error("Error generating review:", error);
-        throw error;
-    }
+        return response.text?.trim() || "";
+    } catch (error) { throw error; }
 };
 
-/**
- * Generate Image
- */
 export interface GenImageOptions {
   prompt: string;
   aspectRatio: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
-  size?: "1K" | "2K" | "4K";
 }
 
 export const generateBeverageImage = async (options: GenImageOptions) => {
   const ai = getAI();
   try {
-    const model = 'gemini-2.5-flash-image'; 
     const response = await ai.models.generateContent({
-      model: model,
-      contents: { parts: [{ text: options.prompt }] },
+      model: 'gemini-2.5-flash-image',
+      contents: { parts: [{ text: `Professional studio photo of ${options.prompt}. Realistic, 4k.` }] },
+      config: { imageConfig: { aspectRatio: options.aspectRatio } }
     });
-
     for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-            return `data:image/png;base64,${part.inlineData.data}`;
-        }
+        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
-    throw new Error("No se generó ninguna imagen.");
-  } catch (error: any) {
-    console.error("Error generating image:", error);
-    // Parse Google Quota Error
-    if (error.status === 429 || error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
-        throw new Error("Has alcanzado el límite de imágenes del plan gratuito. Intenta más tarde o revisa tu cuenta de Google.");
-    }
-    throw error;
-  }
+    throw new Error("No image returned");
+  } catch (error: any) { throw error; }
 };
 
-/**
- * Edit Image
- */
 export const editBeverageImage = async (imageBase64: string, instruction: string) => {
   const ai = getAI();
   try {
-    const model = 'gemini-2.5-flash-image';
     const response = await ai.models.generateContent({
-      model: model,
+      model: 'gemini-2.5-flash-image',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/png', data: cleanBase64(imageBase64) } },
@@ -420,19 +246,9 @@ export const editBeverageImage = async (imageBase64: string, instruction: string
         ]
       }
     });
-
     for (const part of response.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-            return `data:image/png;base64,${part.inlineData.data}`;
-        }
+        if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
     }
-    throw new Error("No se pudo editar la imagen.");
-  } catch (error: any) {
-    console.error("Error editing image:", error);
-    // Parse Google Quota Error
-    if (error.status === 429 || error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
-        throw new Error("Has alcanzado el límite de imágenes del plan gratuito. Intenta más tarde.");
-    }
-    throw error;
-  }
+    throw new Error("Edit failed");
+  } catch (error: any) { throw error; }
 };
