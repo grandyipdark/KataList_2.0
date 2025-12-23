@@ -14,19 +14,23 @@ const cleanBase64 = (b64: string) => b64.replace(/^data:image\/(png|jpeg|webp);b
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function retryWrapper<T>(operation: () => Promise<T>, retries = 3, delay = 2000): Promise<T> {
+/**
+ * Robust retry wrapper with exponential backoff.
+ * Especially useful for 429 (Rate Limit) errors on free tiers.
+ */
+async function retryWrapper<T>(operation: () => Promise<T>, retries = 3, delay = 3000): Promise<T> {
     try {
         return await operation();
     } catch (error: any) {
-        // Handle Rate Limit (429) or Server Error (500, 503)
-        const isQuotaError = error.status === 429 || error.message?.includes('429') || error.message?.includes('quota');
+        const isQuotaError = error.status === 429 || error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
         const isServerError = error.status === 500 || error.status === 503 || error.message?.includes('500') || error.message?.includes('503');
 
         if (retries > 0 && (isQuotaError || isServerError)) {
-            console.warn(`Gemini API Busy/Limited. Retrying in ${delay}ms...`, error.message);
-            await wait(delay);
-            // Exponential backoff
-            return retryWrapper(operation, retries - 1, delay * 2);
+            // Increase delay for quota errors
+            const nextDelay = isQuotaError ? delay * 2 : delay + 1000;
+            console.warn(`Gemini API Busy (Status: ${error.status}). Retrying in ${nextDelay}ms...`);
+            await wait(nextDelay);
+            return retryWrapper(operation, retries - 1, nextDelay);
         }
         
         if (isQuotaError) {
@@ -37,20 +41,14 @@ async function retryWrapper<T>(operation: () => Promise<T>, retries = 3, delay =
     }
 }
 
-/**
- * Super robust JSON cleaning for Grounded Search results.
- * Removes [1], [2] citations and markdown artifacts.
- */
 const cleanGroundedJson = (text: string) => {
     try {
         const start = text.indexOf('{');
         const end = text.lastIndexOf('}');
         if (start === -1 || end === -1) return null;
-        
         let jsonStr = text.substring(start, end + 1);
         jsonStr = jsonStr.replace(/```json|```/g, "");
-        jsonStr = jsonStr.replace(/\[\s*\d+[\s,\d]*\s*\]/g, "");
-        
+        jsonStr = jsonStr.replace(/\[\s*\d+[\s,\d]*\s*\]/g, ""); // Remove citations like [1]
         return JSON.parse(jsonStr);
     } catch (e) {
         return null;
@@ -62,9 +60,7 @@ export const fetchBeverageInfo = async (query: string) => {
   return await retryWrapper(async () => {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Investiga la ficha técnica real de: "${query}". 
-        Responde ÚNICAMENTE con un objeto JSON plano que contenga: name, producer, variety, category, subcategory, country, region, abv (valor numérico), vintage (año). 
-        Usa solo datos reales. No añadas texto explicativo.`,
+        contents: `Ficha técnica de: "${query}". Responde SOLO JSON: {name, producer, variety, category, subcategory, country, region, abv, vintage}.`,
         config: {
           tools: [{ googleSearch: {} }],
         }
@@ -72,10 +68,7 @@ export const fetchBeverageInfo = async (query: string) => {
       
       const text = response.text || "";
       const data = cleanGroundedJson(text);
-      
-      if (!data || Object.keys(data).length < 2) {
-          throw new Error("No pudimos encontrar información suficiente para esta bebida.");
-      }
+      if (!data) throw new Error("No se pudo procesar la información de la bebida.");
       return data;
   });
 };
@@ -85,15 +78,15 @@ export const generateBeverageImage = async (options: { prompt: string, aspectRat
   return await retryWrapper(async () => {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: `Professional product photography of ${options.prompt}. High resolution, studio lighting, elegant.` }] },
+        contents: { parts: [{ text: `High-quality studio photo of ${options.prompt}, isolated, elegant lighting.` }] },
         config: { imageConfig: { aspectRatio: options.aspectRatio } }
       });
 
       for (const part of response.candidates?.[0]?.content?.parts || []) {
           if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
       }
-      throw new Error("No se pudo generar la imagen en este momento.");
-  });
+      throw new Error("La generación de imagen falló por falta de cuota.");
+  }, 2, 4000); // More aggressive wait for images
 };
 
 export const analyzeLabelFromImage = async (imageBase64: string) => {
@@ -103,7 +96,7 @@ export const analyzeLabelFromImage = async (imageBase64: string) => {
         model: 'gemini-flash-lite-latest',
         contents: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64(imageBase64) } },
-          { text: `Extrae los datos técnicos en JSON: name, producer, variety, category, subcategory, country, region, abv, vintage.` }
+          { text: "Extrae datos técnicos en JSON: {name, producer, category, country, abv, vintage}." }
         ],
         config: { responseMimeType: 'application/json' }
       });
@@ -113,8 +106,7 @@ export const analyzeLabelFromImage = async (imageBase64: string) => {
 
 export const initChatWithEauxDeVie = (inventorySummary?: string) => {
   const ai = getAI();
-  let systemInstruction = `Eres "Eaux-de-Vie", Sommelier IA experto. Ayudas con maridajes y dudas técnicas.`;
-  if (inventorySummary) systemInstruction += `\n\nBodega:\n${inventorySummary.substring(0, 500)}`;
+  let systemInstruction = `Eres "Eaux-de-Vie", Sommelier IA. Ayudas brevemente con maridajes.`;
   return ai.chats.create({ model: 'gemini-3-flash-preview', config: { systemInstruction } });
 };
 
@@ -122,7 +114,7 @@ export const initGuidedTastingChat = () => {
   const ai = getAI();
   return ai.chats.create({ 
     model: 'gemini-3-flash-preview', 
-    config: { systemInstruction: "Guía al usuario en una cata paso a paso. Al final genera un bloque JSON." } 
+    config: { systemInstruction: "Guía una cata breve. Al final entrega un JSON." } 
   });
 };
 
@@ -130,7 +122,7 @@ export const suggestSubcategories = async (categoryName: string): Promise<string
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: `Lista 5 subcategorías para "${categoryName}" en un array JSON de strings.`,
+    contents: `5 subcategorías para "${categoryName}". Solo array JSON de strings.`,
     config: { responseMimeType: 'application/json' }
   });
   return JSON.parse(response.text || "[]");
@@ -140,7 +132,7 @@ export const optimizeTagList = async (tags: string[]): Promise<{ original: strin
     const ai = getAI();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Normaliza estas etiquetas: ${JSON.stringify(tags)}. Unifica duplicados. JSON array de {original, corrected}.`,
+        contents: `Normaliza estas etiquetas: ${JSON.stringify(tags)}. JSON array {original, corrected}.`,
         config: { responseMimeType: 'application/json' }
     });
     return JSON.parse(response.text || "[]");
@@ -150,7 +142,7 @@ export const analyzeTastingNotes = async (text: string, category: string, profil
     const ai = getAI();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Analiza: "${text}" (${category}). Extrae etiquetas y perfil 1-5 para: ${profileLabels.join(',')}. JSON format.`,
+        contents: `Analiza: "${text}" (${category}). JSON {tags:[], profile:{p1..p5}}.`,
         config: { responseMimeType: 'application/json' }
     });
     return JSON.parse(response.text || "{}");
@@ -160,7 +152,7 @@ export const generateReviewFromTags = async (data: any) => {
     const ai = getAI();
     const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Escribe nota de cata para: ${data.name}. Usando: ${data.tags.join(', ')}. Elegante, 40 palabras.`,
+        contents: `Reseña de 30 palabras para ${data.name} usando ${data.tags.join(', ')}.`,
     });
     return response.text?.trim() || "";
 };
@@ -177,5 +169,5 @@ export const editBeverageImage = async (imageBase64: string, instruction: string
   for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
   }
-  throw new Error("La edición no se completó.");
+  throw new Error("Fallo en edición.");
 };

@@ -115,6 +115,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     };
 
     const handleGenImage = async (prompt: string) => { 
+        if (loadingState !== 'idle') return;
         setLoadingState('generating'); 
         try { 
             const img = await generateBeverageImage({ prompt: prompt || tasting.name, aspectRatio: '1:1' }); 
@@ -122,14 +123,15 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             setTasting(prev => ({ ...prev, images: [img, ...prev.images] })); 
             showToast("Imagen generada", "success"); 
         } catch (e: any) { 
-            const msg = e.message?.includes('429') ? "Cuota excedida. Espera un momento." : e.message;
+            let msg = "Error al generar imagen.";
+            if (e.message?.includes('Límite')) msg = e.message;
             showToast(msg, "error"); 
         } 
         setLoadingState('idle'); 
     };
 
     const handleEditImage = async (index: number, instruction: string) => { 
-        if (!instruction) return; 
+        if (!instruction || loadingState !== 'idle') return; 
         setLoadingState('generating'); 
         try { 
             const newImg = await editBeverageImage(tasting.images[index], instruction); 
@@ -146,8 +148,9 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     
     const handleAutoFill = async () => { 
         if (!tasting.name) return showToast("Escribe un nombre primero", "error"); 
+        if (loadingState !== 'idle') return;
         setLoadingState('analyzing'); 
-        showToast("Investigando...", "info"); 
+        showToast("Investigando (puede tardar)...", "info"); 
         try { 
             const info = await fetchBeverageInfo(tasting.name); 
             setIsDirty(true);
@@ -163,12 +166,9 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             })); 
             showToast("Datos completados", "success"); 
         } catch (e: any) { 
-            // CLEAN ERROR MESSAGE: Don't show JSON to user
             let userFriendlyMsg = "Sin resultados.";
-            if (e.message?.includes('429') || e.message?.includes('quota') || e.message?.includes('Límite')) {
-                userFriendlyMsg = "Límite de búsqueda IA alcanzado. Por favor, espera un minuto.";
-            } else if (e.message && !e.message.startsWith('{')) {
-                userFriendlyMsg = e.message;
+            if (e.message?.includes('Límite') || e.message?.includes('cuota') || e.message?.includes('429')) {
+                userFriendlyMsg = "Límite de cuota IA alcanzado. Espera un minuto.";
             }
             showToast(userFriendlyMsg, "error"); 
         } 
@@ -203,7 +203,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     
     const handleAnalyzeNotes = async () => { 
         const fullText = `${tasting.visual} ${tasting.aroma} ${tasting.taste} ${tasting.notes}`; 
-        if (fullText.trim().length < 10) return showToast("Escribe más notas primero.", "error"); 
+        if (fullText.trim().length < 10 || loadingState !== 'idle') return showToast("Escribe más notas primero.", "error"); 
         setLoadingState('analyzing'); 
         try { 
             const labels = getProfileLabels(tasting.category); 
