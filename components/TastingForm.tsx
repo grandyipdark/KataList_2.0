@@ -31,9 +31,10 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     });
 
     const [activeSection, setActiveSection] = useState<'MEDIA'|'MAIN'|'TECH'|'NOTES'>('MAIN');
-    const [loadingState, setLoadingState] = useState<'idle' | 'uploading' | 'analyzing' | 'generating'>('idle');
+    const [loadingState, setLoadingState] = useState<'idle' | 'uploading' | 'analyzing' | 'generating' | 'cooldown'>('idle');
     const [isDirty, setIsDirty] = useState(false);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
+    const [cooldownTimer, setCooldownTimer] = useState(0);
 
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -45,6 +46,18 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isDirty]);
+
+    useEffect(() => {
+        let interval: any;
+        if (cooldownTimer > 0) {
+            interval = setInterval(() => {
+                setCooldownTimer(prev => prev - 1);
+            }, 1000);
+        } else if (loadingState === 'cooldown') {
+            setLoadingState('idle');
+        }
+        return () => clearInterval(interval);
+    }, [cooldownTimer, loadingState]);
 
     useEffect(() => {
         if (id) return; 
@@ -122,12 +135,12 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             setIsDirty(true);
             setTasting(prev => ({ ...prev, images: [img, ...prev.images] })); 
             showToast("Imagen generada", "success"); 
+            setLoadingState('idle');
         } catch (e: any) { 
-            let msg = "Error al generar imagen.";
-            if (e.message?.includes('Límite')) msg = e.message;
-            showToast(msg, "error"); 
+            setLoadingState('cooldown');
+            setCooldownTimer(30);
+            showToast(e.message || "Error al generar imagen.", "error"); 
         } 
-        setLoadingState('idle'); 
     };
 
     const handleEditImage = async (index: number, instruction: string) => { 
@@ -142,15 +155,19 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                 return { ...prev, images: newImages }; 
             }); 
             showToast("Imagen editada", "success"); 
-        } catch(e: any) { showToast("No se pudo editar.", "error"); } 
-        setLoadingState('idle'); 
+            setLoadingState('idle');
+        } catch(e: any) { 
+            setLoadingState('cooldown');
+            setCooldownTimer(15);
+            showToast("No se pudo editar.", "error"); 
+        } 
     };
     
     const handleAutoFill = async () => { 
         if (!tasting.name) return showToast("Escribe un nombre primero", "error"); 
         if (loadingState !== 'idle') return;
         setLoadingState('analyzing'); 
-        showToast("Investigando (puede tardar)...", "info"); 
+        showToast("Investigando (esto usa mucha cuota)...", "info"); 
         try { 
             const info = await fetchBeverageInfo(tasting.name); 
             setIsDirty(true);
@@ -165,14 +182,12 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                 createdAt: prev.createdAt
             })); 
             showToast("Datos completados", "success"); 
+            setLoadingState('idle');
         } catch (e: any) { 
-            let userFriendlyMsg = "Sin resultados.";
-            if (e.message?.includes('Límite') || e.message?.includes('cuota') || e.message?.includes('429')) {
-                userFriendlyMsg = "Límite de cuota IA alcanzado. Espera un minuto.";
-            }
-            showToast(userFriendlyMsg, "error"); 
+            setLoadingState('cooldown');
+            setCooldownTimer(45); // Quota errors need long cooldown
+            showToast(e.message || "Error de red IA.", "error"); 
         } 
-        setLoadingState('idle'); 
     };
     
     const handleScanLabel = () => {
@@ -189,8 +204,12 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                     setIsDirty(true);
                     setTasting(prev => ({ ...prev, ...data, id: prev.id, images: [compressed, ...prev.images] }));
                     showToast("Datos extraídos", "success");
-                } catch(err: any) { showToast("No se pudo leer la etiqueta.", "error"); }
-                setLoadingState('idle');
+                    setLoadingState('idle');
+                } catch(err: any) { 
+                    setLoadingState('cooldown');
+                    setCooldownTimer(15);
+                    showToast("No se pudo leer la etiqueta.", "error"); 
+                }
             }
         };
         input.click();
@@ -211,8 +230,12 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             setIsDirty(true);
             setTasting(prev => ({ ...prev, tags: Array.from(new Set([...prev.tags, ...(result.tags || [])])), profile: result.profile || prev.profile })); 
             showToast("Notas etiquetadas", "success"); 
-        } catch (e: any) { showToast("Error analizando notas.", "error"); } 
-        setLoadingState('idle'); 
+            setLoadingState('idle');
+        } catch (e: any) { 
+            setLoadingState('cooldown');
+            setCooldownTimer(20);
+            showToast("Error analizando notas.", "error"); 
+        } 
     };
 
     return (
@@ -220,12 +243,20 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-dark-900/95 backdrop-blur z-10 shrink-0">
                 <button onClick={handleCancelWrapped} className="text-slate-400 font-medium active:scale-95 transition">Cancelar</button>
                 <button onClick={handleScanLabel} className="bg-slate-800 text-primary-500 px-3 py-1 rounded-full text-xs font-bold border border-slate-700 flex items-center gap-1 active:scale-95 transition"><Icon name="document_scanner" className="text-sm" /> Escanear</button>
-                <button onClick={handleSave} disabled={loadingState !== 'idle'} className="text-primary-500 font-bold disabled:opacity-50 min-w-[60px] text-right">
+                <button onClick={handleSave} disabled={loadingState !== 'idle' && loadingState !== 'cooldown'} className="text-primary-500 font-bold disabled:opacity-50 min-w-[60px] text-right">
                     {loadingState === 'uploading' ? '...' : 'Guardar'}
                 </button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 pb-24 pt-4 space-y-4 w-full">
+                {loadingState === 'cooldown' && (
+                    <div className="bg-orange-900/20 border border-orange-500/30 p-3 rounded-xl animate-pulse">
+                        <p className="text-[10px] text-orange-400 font-bold text-center uppercase tracking-widest">
+                            IA en reposo por cuota: {cooldownTimer}s
+                        </p>
+                    </div>
+                )}
+
                 <AccordionSection title="Multimedia" icon="image" isOpen={activeSection === 'MEDIA'} onToggle={() => toggleSection('MEDIA')}>
                     <MediaSection tasting={tasting} setTasting={setTasting} handleFile={handleFile} handleGenImage={handleGenImage} handleEditImage={handleEditImage} isLoading={loadingState !== 'idle'} />
                 </AccordionSection>

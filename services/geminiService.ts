@@ -15,26 +15,27 @@ const cleanBase64 = (b64: string) => b64.replace(/^data:image\/(png|jpeg|webp);b
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Robust retry wrapper with exponential backoff.
- * Especially useful for 429 (Rate Limit) errors on free tiers.
+ * Enhanced Retry Wrapper for 429 Quota issues.
+ * Google Search Grounding is very sensitive to RPM limits.
  */
-async function retryWrapper<T>(operation: () => Promise<T>, retries = 3, delay = 3000): Promise<T> {
+async function retryWrapper<T>(operation: () => Promise<T>, retries = 2, delay = 6000): Promise<T> {
     try {
         return await operation();
     } catch (error: any) {
-        const isQuotaError = error.status === 429 || error.message?.includes('429') || error.message?.includes('quota') || error.message?.includes('RESOURCE_EXHAUSTED');
-        const isServerError = error.status === 500 || error.status === 503 || error.message?.includes('500') || error.message?.includes('503');
-
-        if (retries > 0 && (isQuotaError || isServerError)) {
-            // Increase delay for quota errors
-            const nextDelay = isQuotaError ? delay * 2 : delay + 1000;
-            console.warn(`Gemini API Busy (Status: ${error.status}). Retrying in ${nextDelay}ms...`);
-            await wait(nextDelay);
-            return retryWrapper(operation, retries - 1, nextDelay);
+        const isQuotaError = error.status === 429 || 
+                             error.message?.includes('429') || 
+                             error.message?.includes('quota') || 
+                             error.message?.includes('RESOURCE_EXHAUSTED');
+        
+        if (retries > 0 && isQuotaError) {
+            console.warn(`Cuota agotada temporalmente. Reintentando en ${delay/1000}s...`);
+            await wait(delay);
+            // We increase delay significantly for quota errors to allow the 1-minute window to reset
+            return retryWrapper(operation, retries - 1, delay * 2);
         }
         
         if (isQuotaError) {
-            throw new Error("Límite de búsqueda IA alcanzado. Por favor, espera un minuto antes de intentar de nuevo.");
+            throw new Error("Límite de búsqueda IA alcanzado. Por favor, espera 60 segundos antes de intentar de nuevo.");
         }
         
         throw error;
@@ -48,7 +49,8 @@ const cleanGroundedJson = (text: string) => {
         if (start === -1 || end === -1) return null;
         let jsonStr = text.substring(start, end + 1);
         jsonStr = jsonStr.replace(/```json|```/g, "");
-        jsonStr = jsonStr.replace(/\[\s*\d+[\s,\d]*\s*\]/g, ""); // Remove citations like [1]
+        // Remove citations like [1] that grounding adds and break JSON
+        jsonStr = jsonStr.replace(/\[\s*\d+[\s,\d]*\s*\]/g, ""); 
         return JSON.parse(jsonStr);
     } catch (e) {
         return null;
@@ -60,15 +62,15 @@ export const fetchBeverageInfo = async (query: string) => {
   return await retryWrapper(async () => {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Ficha técnica de: "${query}". Responde SOLO JSON: {name, producer, variety, category, subcategory, country, region, abv, vintage}.`,
+        contents: `Info de: "${query}". Responde SOLO JSON: {name, producer, variety, category, subcategory, country, region, abv, vintage}.`,
         config: {
-          tools: [{ googleSearch: {} }],
+          tools: [{ googleSearch: {} }], // Grounding consumes most quota
         }
       });
       
       const text = response.text || "";
       const data = cleanGroundedJson(text);
-      if (!data) throw new Error("No se pudo procesar la información de la bebida.");
+      if (!data) throw new Error("No se pudo extraer la información. Reintenta en un minuto.");
       return data;
   });
 };
@@ -78,15 +80,15 @@ export const generateBeverageImage = async (options: { prompt: string, aspectRat
   return await retryWrapper(async () => {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: `High-quality studio photo of ${options.prompt}, isolated, elegant lighting.` }] },
+        contents: { parts: [{ text: `Elegant product photo: ${options.prompt}, studio lighting.` }] },
         config: { imageConfig: { aspectRatio: options.aspectRatio } }
       });
 
       for (const part of response.candidates?.[0]?.content?.parts || []) {
           if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
       }
-      throw new Error("La generación de imagen falló por falta de cuota.");
-  }, 2, 4000); // More aggressive wait for images
+      throw new Error("Imagen no generada por límite de servicio.");
+  }, 1, 8000); 
 };
 
 export const analyzeLabelFromImage = async (imageBase64: string) => {
@@ -96,7 +98,7 @@ export const analyzeLabelFromImage = async (imageBase64: string) => {
         model: 'gemini-flash-lite-latest',
         contents: [
           { inlineData: { mimeType: 'image/jpeg', data: cleanBase64(imageBase64) } },
-          { text: "Extrae datos técnicos en JSON: {name, producer, category, country, abv, vintage}." }
+          { text: "JSON: {name, producer, category, country, abv, vintage}." }
         ],
         config: { responseMimeType: 'application/json' }
       });
@@ -106,7 +108,7 @@ export const analyzeLabelFromImage = async (imageBase64: string) => {
 
 export const initChatWithEauxDeVie = (inventorySummary?: string) => {
   const ai = getAI();
-  let systemInstruction = `Eres "Eaux-de-Vie", Sommelier IA. Ayudas brevemente con maridajes.`;
+  let systemInstruction = `Eres "Eaux-de-Vie", Sommelier IA. Ayudas brevemente.`;
   return ai.chats.create({ model: 'gemini-3-flash-preview', config: { systemInstruction } });
 };
 
@@ -114,60 +116,70 @@ export const initGuidedTastingChat = () => {
   const ai = getAI();
   return ai.chats.create({ 
     model: 'gemini-3-flash-preview', 
-    config: { systemInstruction: "Guía una cata breve. Al final entrega un JSON." } 
+    config: { systemInstruction: "Guía una cata breve. Entrega JSON al final." } 
   });
 };
 
 export const suggestSubcategories = async (categoryName: string): Promise<string[]> => {
   const ai = getAI();
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: `5 subcategorías para "${categoryName}". Solo array JSON de strings.`,
-    config: { responseMimeType: 'application/json' }
+  return await retryWrapper(async () => {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `5 subcategorías para "${categoryName}". Solo array JSON de strings.`,
+        config: { responseMimeType: 'application/json' }
+      });
+      return JSON.parse(response.text || "[]");
   });
-  return JSON.parse(response.text || "[]");
 };
 
 export const optimizeTagList = async (tags: string[]): Promise<{ original: string, corrected: string }[]> => {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Normaliza estas etiquetas: ${JSON.stringify(tags)}. JSON array {original, corrected}.`,
-        config: { responseMimeType: 'application/json' }
+    return await retryWrapper(async () => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Normaliza: ${JSON.stringify(tags)}. JSON array {original, corrected}.`,
+            config: { responseMimeType: 'application/json' }
+        });
+        return JSON.parse(response.text || "[]");
     });
-    return JSON.parse(response.text || "[]");
 };
 
 export const analyzeTastingNotes = async (text: string, category: string, profileLabels: string[]) => {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Analiza: "${text}" (${category}). JSON {tags:[], profile:{p1..p5}}.`,
-        config: { responseMimeType: 'application/json' }
+    return await retryWrapper(async () => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Analiza: "${text}" (${category}). JSON {tags:[], profile:{p1..p5}}.`,
+            config: { responseMimeType: 'application/json' }
+        });
+        return JSON.parse(response.text || "{}");
     });
-    return JSON.parse(response.text || "{}");
 };
 
 export const generateReviewFromTags = async (data: any) => {
     const ai = getAI();
-    const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Reseña de 30 palabras para ${data.name} usando ${data.tags.join(', ')}.`,
+    return await retryWrapper(async () => {
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Reseña corta (30 pal) para ${data.name} con ${data.tags.join(', ')}.`,
+        });
+        return response.text?.trim() || "";
     });
-    return response.text?.trim() || "";
 };
 
 export const editBeverageImage = async (imageBase64: string, instruction: string) => {
   const ai = getAI();
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash-image',
-    contents: [
-      { inlineData: { mimeType: 'image/png', data: cleanBase64(imageBase64) } },
-      { text: instruction }
-    ]
+  return await retryWrapper(async () => {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: [
+          { inlineData: { mimeType: 'image/png', data: cleanBase64(imageBase64) } },
+          { text: instruction }
+        ]
+      });
+      for (const part of response.candidates?.[0]?.content?.parts || []) {
+          if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+      }
+      throw new Error("No se pudo completar la edición.");
   });
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
-  }
-  throw new Error("Fallo en edición.");
 };
