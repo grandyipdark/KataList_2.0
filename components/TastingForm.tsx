@@ -139,7 +139,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         } catch (e: any) { 
             setLoadingState('cooldown');
             setCooldownTimer(30);
-            showToast(e.message || "Error al generar imagen.", "error"); 
+            showToast("El servicio de imágenes está saturado. Reintenta en 30s.", "error"); 
         } 
     };
 
@@ -158,8 +158,8 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             setLoadingState('idle');
         } catch(e: any) { 
             setLoadingState('cooldown');
-            setCooldownTimer(15);
-            showToast("No se pudo editar.", "error"); 
+            setCooldownTimer(10);
+            showToast("Fallo en edición.", "error"); 
         } 
     };
     
@@ -167,7 +167,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         if (!tasting.name) return showToast("Escribe un nombre primero", "error"); 
         if (loadingState !== 'idle') return;
         setLoadingState('analyzing'); 
-        showToast("Investigando (esto usa mucha cuota)...", "info"); 
+        showToast("Investigando bebida...", "info"); 
         try { 
             const info = await fetchBeverageInfo(tasting.name); 
             setIsDirty(true);
@@ -181,12 +181,12 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                 stock: prev.stock,
                 createdAt: prev.createdAt
             })); 
-            showToast("Datos completados", "success"); 
+            showToast("Ficha completada", "success"); 
             setLoadingState('idle');
         } catch (e: any) { 
             setLoadingState('cooldown');
-            setCooldownTimer(45); // Quota errors need long cooldown
-            showToast(e.message || "Error de red IA.", "error"); 
+            setCooldownTimer(20); 
+            showToast("IA ocupada. Reintenta en unos segundos.", "error"); 
         } 
     };
     
@@ -203,11 +203,11 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                     const data = await analyzeLabelFromImage(compressed);
                     setIsDirty(true);
                     setTasting(prev => ({ ...prev, ...data, id: prev.id, images: [compressed, ...prev.images] }));
-                    showToast("Datos extraídos", "success");
+                    showToast("Etiqueta leída", "success");
                     setLoadingState('idle');
                 } catch(err: any) { 
                     setLoadingState('cooldown');
-                    setCooldownTimer(15);
+                    setCooldownTimer(10);
                     showToast("No se pudo leer la etiqueta.", "error"); 
                 }
             }
@@ -229,12 +229,12 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
             const result = await analyzeTastingNotes(fullText, tasting.category, labels); 
             setIsDirty(true);
             setTasting(prev => ({ ...prev, tags: Array.from(new Set([...prev.tags, ...(result.tags || [])])), profile: result.profile || prev.profile })); 
-            showToast("Notas etiquetadas", "success"); 
+            showToast("Notas analizadas", "success"); 
             setLoadingState('idle');
         } catch (e: any) { 
             setLoadingState('cooldown');
-            setCooldownTimer(20);
-            showToast("Error analizando notas.", "error"); 
+            setCooldownTimer(15);
+            showToast("Error analizando.", "error"); 
         } 
     };
 
@@ -252,7 +252,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                 {loadingState === 'cooldown' && (
                     <div className="bg-orange-900/20 border border-orange-500/30 p-3 rounded-xl animate-pulse">
                         <p className="text-[10px] text-orange-400 font-bold text-center uppercase tracking-widest">
-                            IA en reposo por cuota: {cooldownTimer}s
+                            IA saturada. Espera {cooldownTimer}s
                         </p>
                     </div>
                 )}
