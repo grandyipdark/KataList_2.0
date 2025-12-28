@@ -1,7 +1,7 @@
 
 importScripts('https://unpkg.com/idb-keyval@6.2.1/dist/index.js');
 
-const CACHE_NAME = 'katalist-v21.11';
+const CACHE_NAME = 'katalist-v22.06';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -47,7 +47,6 @@ self.addEventListener('message', (event) => {
 
 // Fetch Event
 self.addEventListener('fetch', (event) => {
-  // Share Target Handling (POST)
   if (event.request.method === 'POST' && new URL(event.request.url).pathname.endsWith('/share-target')) {
     event.respondWith(
       (async () => {
@@ -55,10 +54,8 @@ self.addEventListener('fetch', (event) => {
           const formData = await event.request.formData();
           const mediaFile = formData.get('media');
           if (mediaFile) {
-            // Store file in IDB to be picked up by the app
             await idbKeyval.set('katalist_shared_file', mediaFile);
           }
-          // Redirect to the app (New Tasting Page)
           return Response.redirect('./#/new?shared=true', 303);
         } catch (e) {
           console.error('Share Target Error:', e);
@@ -69,7 +66,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Navigation requests (HTML)
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
@@ -79,7 +75,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Generic Strategy
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const fetchPromise = fetch(event.request).then((networkResponse) => {

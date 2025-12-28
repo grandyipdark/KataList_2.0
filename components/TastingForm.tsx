@@ -11,6 +11,14 @@ import { MediaSection, MainSection, TechSection, SensorySection } from './FormSe
 
 const DRAFT_KEY = 'katalist_draft_v1';
 
+const getEmptyTasting = (): Tasting => ({ 
+    id: Date.now().toString(), 
+    name: '', producer: '', variety: '', category: '', subcategory: '', country: '', region: '', 
+    location: '', abv: '', vintage: '', price: '', score: 5, isFavorite: false, isWishlist: false, 
+    visual: '', aroma: '', taste: '', pairing: '', notes: '', images: [], tags: [], stock: 1, 
+    createdAt: Date.now(), updatedAt: Date.now(), profile: { p1: 3, p2: 3, p3: 3, p4: 3, p5: 3 } 
+});
+
 export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?: Tasting, onCancel?: () => void }) => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -27,7 +35,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
                 try { return JSON.parse(savedDraft); } catch(e) {}
             }
         }
-        return { id: Date.now().toString(), name: '', producer: '', variety: '', category: '', subcategory: '', country: '', region: '', location: '', abv: '', vintage: '', price: '', score: 5, isFavorite: false, isWishlist: false, visual: '', aroma: '', taste: '', pairing: '', notes: '', images: [], tags: [], stock: 0, createdAt: Date.now(), updatedAt: Date.now(), profile: { p1: 3, p2: 3, p3: 3, p4: 3, p5: 3 } };
+        return getEmptyTasting();
     });
 
     const [activeSection, setActiveSection] = useState<'MEDIA'|'MAIN'|'TECH'|'NOTES'>('MAIN');
@@ -35,6 +43,19 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     const [isDirty, setIsDirty] = useState(false);
     const [showExitConfirm, setShowExitConfirm] = useState(false);
     const [cooldownTimer, setCooldownTimer] = useState(0);
+
+    // CRITICAL FIX: Reset form when switching to /new
+    useEffect(() => {
+        if (isNewMode && !initialData) {
+            const savedDraft = localStorage.getItem(DRAFT_KEY);
+            if (savedDraft) {
+                try { setTasting(JSON.parse(savedDraft)); } catch(e) { setTasting(getEmptyTasting()); }
+            } else {
+                setTasting(getEmptyTasting());
+            }
+            setIsDirty(false);
+        }
+    }, [isNewMode, initialData]);
 
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -103,7 +124,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         if (!tasting.category) return showToast("Selecciona una categoría", "error"); 
         setLoadingState('uploading'); 
         await saveTasting({ ...tasting, updatedAt: Date.now() }); 
-        localStorage.removeItem(DRAFT_KEY);
+        localStorage.removeItem(DRAFT_KEY); // Clean up draft on success
         setIsDirty(false);
         setLoadingState('idle'); 
     };
@@ -139,7 +160,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         } catch (e: any) { 
             setLoadingState('cooldown');
             setCooldownTimer(30);
-            showToast("El servicio de imágenes está saturado. Reintenta en 30s.", "error"); 
+            showToast("Servicio saturado. Reintenta en 30s.", "error"); 
         } 
     };
 
@@ -186,7 +207,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         } catch (e: any) { 
             setLoadingState('cooldown');
             setCooldownTimer(20); 
-            showToast("IA ocupada. Reintenta en unos segundos.", "error"); 
+            showToast("IA ocupada. Usando modo de reserva.", "error"); 
         } 
     };
     
