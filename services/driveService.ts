@@ -16,11 +16,12 @@ export const driveService = {
     setClientId: (id: string) => {
         localStorage.setItem('kata_drive_client_id', id);
         tokenClient = null; 
+        accessToken = null;
     },
 
     init: (onSuccess: (token: string) => void, onError: (err: any) => void): void => {
         if (typeof google === 'undefined' || !google.accounts) {
-            onError("SDK de Google no cargado. Reintenta en 5 segundos.");
+            onError("SDK de Google no cargado.");
             return;
         }
 
@@ -30,7 +31,7 @@ export const driveService = {
                 scope: SCOPES,
                 callback: (response: any) => {
                     if (response.error) {
-                        onError(response);
+                        onError(response.error);
                         return;
                     }
                     accessToken = response.access_token;
@@ -39,47 +40,27 @@ export const driveService = {
                 },
             });
         } catch (e) {
-            onError("Error de configuración: " + (e instanceof Error ? e.message : "ID inválido"));
+            onError("ID de Cliente inválido");
         }
     },
 
     signIn: (): Promise<string> => {
         return new Promise((resolve, reject) => {
-            if (typeof google === 'undefined') {
-                reject("Librería de Google no disponible.");
-                return;
-            }
+            if (typeof google === 'undefined') return reject("Librería Google no lista");
 
-            const handleResponse = (response: any) => {
-                if (response.access_token) {
-                    accessToken = response.access_token;
-                    localStorage.setItem('kata_cloud_connected', 'true');
-                    resolve(response.access_token);
-                } else {
-                    // Mapeo de errores comunes de Google
-                    const error = response.error || "unknown";
-                    if (error === 'popup_closed_by_user') reject("Ventana cerrada");
-                    else if (error === 'access_denied') reject("Acceso denegado por el usuario");
-                    else reject(`Google Error: ${error}`);
-                }
-            };
+            // Si ya tenemos token, intentamos usarlo
+            if (accessToken) return resolve(accessToken);
 
-            const handleError = (err: any) => {
-                const msg = typeof err === 'object' ? (err.error || JSON.stringify(err)) : err;
-                reject(msg);
-            };
-
-            // Re-inicializar siempre para asegurar que los callbacks de la promesa actual sean los correctos
             driveService.init(
                 (token) => resolve(token),
-                handleError
+                (err) => reject(err)
             );
 
             if (tokenClient) {
                 try {
                     tokenClient.requestAccessToken({ prompt: 'consent' });
                 } catch (e) {
-                    reject("Error al lanzar popup.");
+                    reject("Fallo al abrir ventana.");
                 }
             }
         });
@@ -95,30 +76,32 @@ export const driveService = {
     },
 
     findBackupFile: async (): Promise<CloudFile | null> => {
-        if (!accessToken) {
-            if (localStorage.getItem('kata_cloud_connected')) {
-                await driveService.signIn();
-            } else {
-                throw new Error("AUTH_REQUIRED");
-            }
-        }
+        if (!accessToken) throw new Error("AUTH_REQUIRED");
 
         const query = `name = '${BACKUP_FILENAME}' and 'appDataFolder' in parents and trashed = false`;
         const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)&spaces=appDataFolder`;
 
-        const res = await fetch(url, {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        
-        if (res.status === 401) {
-            accessToken = null;
-            throw new Error("AUTH_EXPIRED");
+        try {
+            const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            
+            if (res.status === 403) {
+                throw new Error("API_DRIVE_DISABLED");
+            }
+            
+            if (res.status === 401) {
+                accessToken = null;
+                throw new Error("AUTH_EXPIRED");
+            }
+            
+            if (!res.ok) throw new Error("FETCH_ERROR");
+            
+            const data = await res.json();
+            return (data.files && data.files.length > 0) ? data.files[0] : null;
+        } catch (e: any) {
+            throw e;
         }
-        
-        if (!res.ok) throw new Error("Error en Google Drive");
-        
-        const data = await res.json();
-        return (data.files && data.files.length > 0) ? data.files[0] : null;
     },
 
     uploadBackup: async (jsonContent: string): Promise<void> => {
@@ -148,7 +131,7 @@ export const driveService = {
             body: form
         });
 
-        if (!res.ok) throw new Error("Error al subir archivo");
+        if (!res.ok) throw new Error("UPLOAD_FAILED");
     },
 
     downloadBackup: async (fileId: string): Promise<string> => {
@@ -159,7 +142,7 @@ export const driveService = {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
 
-        if (!res.ok) throw new Error("Error al descargar backup");
+        if (!res.ok) throw new Error("DOWNLOAD_FAILED");
         return await res.text();
     }
 };

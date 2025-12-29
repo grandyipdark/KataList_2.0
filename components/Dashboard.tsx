@@ -71,12 +71,6 @@ export const Dashboard = React.memo(() => {
       setShowCloudDev(false);
   };
 
-  const isDynamicDomain = window.location.hostname.includes('usercontent.goog') || 
-                          window.location.hostname.includes('webcontainer') ||
-                          window.location.hostname.includes('codesandbox');
-  
-  const isVercel = window.location.hostname.includes('vercel.app');
-
   const themes = [
       { name: 'Azul', color: '#3b82f6' },
       { name: 'Púrpura', color: '#a855f7' },
@@ -214,9 +208,22 @@ export const Dashboard = React.memo(() => {
                             
                             {showCloudDev && (
                                 <div className="bg-white dark:bg-slate-900/80 p-3 rounded-lg border border-blue-300 dark:border-blue-700 mb-3 animate-slide-up shadow-inner">
-                                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-300 mb-2 flex items-center gap-1"><Icon name="report" className="text-xs" /> Solución de Errores OAuth:</p>
+                                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-300 mb-2 flex items-center gap-1"><Icon name="report" className="text-xs" /> Solución de Errores:</p>
                                     
                                     <div className="space-y-4">
+                                        {/* NUEVO ERROR: DRIVE API DISABLED */}
+                                        <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-800">
+                                            <p className="text-[9px] text-purple-800 dark:text-purple-200 mb-2 font-bold">🟣 Error: API_DRIVE_DISABLED</p>
+                                            <p className="text-[8px] text-slate-600 dark:text-slate-300 leading-tight mb-2">Has entrado con éxito, pero Google no deja que la app use Drive.</p>
+                                            <button 
+                                                onClick={() => window.open('https://console.cloud.google.com/apis/library/drive.googleapis.com', '_blank')} 
+                                                className="w-full py-1.5 bg-purple-600 text-white rounded text-[9px] font-bold mb-1"
+                                            >
+                                                1. Activar Google Drive API
+                                            </button>
+                                            <p className="text-[8px] text-center text-slate-500">Haz clic en el botón azul "ENABLE" en esa página.</p>
+                                        </div>
+
                                         <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
                                             <p className="text-[9px] text-red-800 dark:text-red-200 mb-2 font-bold">🔴 Error 403: access_denied</p>
                                             <p className="text-[8px] text-slate-600 dark:text-slate-300 leading-tight mb-2">Google bloquea el acceso porque tu app está en modo "Prueba".</p>
@@ -224,7 +231,7 @@ export const Dashboard = React.memo(() => {
                                                 onClick={() => window.open('https://console.cloud.google.com/auth/user-list', '_blank')} 
                                                 className="w-full py-1.5 bg-red-600 text-white rounded text-[9px] font-bold mb-1"
                                             >
-                                                1. Abrir Lista de Usuarios
+                                                2. Abrir Lista de Usuarios
                                             </button>
                                             <p className="text-[8px] text-center text-slate-500">Haz clic en "ADD USERS" y agrega tu correo.</p>
                                         </div>

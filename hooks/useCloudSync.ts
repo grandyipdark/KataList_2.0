@@ -11,6 +11,34 @@ export const useCloudSync = (
     const [cloudLastSync, setCloudLastSync] = useState<string | null>(null);
     const [isSyncing, setIsSyncing] = useState<'idle' | 'connecting' | 'uploading' | 'downloading'>('idle');
 
+    const connectCloud = useCallback(async () => {
+        setIsSyncing('connecting');
+        try {
+            await driveService.signIn();
+            
+            const file = await driveService.findBackupFile();
+            setIsCloudConnected(true);
+            showToast("Conectado a Google Drive", 'success');
+            
+            if (file) {
+                setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
+                showToast("Copia de seguridad encontrada", 'info');
+            }
+        } catch (e: any) {
+            console.error("Cloud Connection Error:", e);
+            setIsCloudConnected(false);
+            
+            if (e.message === "API_DRIVE_DISABLED") {
+                showToast("Falta activar 'Google Drive API' en la consola", 'error');
+            } else {
+                const errorMsg = typeof e === 'string' ? e : (e.error || "Error de conexión");
+                showToast(errorMsg, 'error');
+            }
+        } finally {
+            setIsSyncing('idle');
+        }
+    }, [showToast]);
+
     useEffect(() => {
         const wasConnected = localStorage.getItem('kata_cloud_connected') === 'true';
         if (wasConnected) {
@@ -20,43 +48,16 @@ export const useCloudSync = (
                     if (file) setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
                 })
                 .catch(() => {
-                    setIsCloudConnected(false);
+                    // Si falla silenciosamente al inicio es normal (token caducado)
                 });
         }
     }, []);
-
-    const connectCloud = useCallback(async () => {
-        setIsSyncing('connecting');
-        try {
-            await driveService.signIn();
-            setIsCloudConnected(true);
-            showToast("Conectado a Google Drive", 'success');
-            
-            const file = await driveService.findBackupFile();
-            if (file) {
-                setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
-                showToast("Copia de seguridad encontrada", 'info');
-            }
-        } catch (e: any) {
-            console.error("Cloud Connection Error:", e);
-            setIsCloudConnected(false);
-            // Mostrar el mensaje de error real que viene del servicio
-            const errorMsg = typeof e === 'string' ? e : (e.error || "Error de conexión");
-            showToast(errorMsg, 'error');
-        } finally {
-            setIsSyncing('idle');
-        }
-    }, [showToast]);
 
     const uploadToCloud = useCallback(async () => {
         if (isSyncing !== 'idle') return;
         setIsSyncing('uploading');
         try {
             const data = await exportData(true);
-            if (data.length > 50 * 1024 * 1024) {
-                showToast("Base de datos pesada. Sincronizando...", "info");
-            }
-            
             await driveService.uploadBackup(data);
             setCloudLastSync(new Date().toLocaleString());
             showToast("Copia de seguridad subida", 'success');
