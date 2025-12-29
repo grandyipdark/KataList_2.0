@@ -209,51 +209,44 @@ export const Dashboard = React.memo(() => {
                                     <span className="text-xs font-bold text-blue-700 dark:text-blue-100">Google Drive</span>
                                     {isSyncing !== 'idle' && <Icon name="sync" className="text-blue-500 animate-spin text-sm" />}
                                 </div>
-                                <button onClick={() => setShowCloudDev(!showCloudDev)} className="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded border border-blue-500 font-bold uppercase shadow-sm">Configurar ID</button>
+                                <button onClick={() => setShowCloudDev(!showCloudDev)} className="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded border border-blue-500 font-bold uppercase shadow-sm">Diagnóstico</button>
                             </div>
                             
                             {showCloudDev && (
                                 <div className="bg-white dark:bg-slate-900/80 p-3 rounded-lg border border-blue-300 dark:border-blue-700 mb-3 animate-slide-up shadow-inner">
-                                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-300 mb-2 flex items-center gap-1"><Icon name="report" className="text-xs" /> Diagnóstico Error 400:</p>
+                                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-300 mb-2 flex items-center gap-1"><Icon name="report" className="text-xs" /> Solución de Errores OAuth:</p>
                                     
-                                    <div className="space-y-3">
-                                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-100 dark:border-blue-800">
-                                            <p className="text-[9px] text-blue-800 dark:text-blue-200 mb-1 font-bold">1. Tu Origen Actual:</p>
-                                            <div className="flex gap-1">
+                                    <div className="space-y-4">
+                                        <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
+                                            <p className="text-[9px] text-red-800 dark:text-red-200 mb-2 font-bold">🔴 Error 403: access_denied</p>
+                                            <p className="text-[8px] text-slate-600 dark:text-slate-300 leading-tight mb-2">Google bloquea el acceso porque tu app está en modo "Prueba".</p>
+                                            <button 
+                                                onClick={() => window.open('https://console.cloud.google.com/auth/user-list', '_blank')} 
+                                                className="w-full py-1.5 bg-red-600 text-white rounded text-[9px] font-bold mb-1"
+                                            >
+                                                1. Abrir Lista de Usuarios
+                                            </button>
+                                            <p className="text-[8px] text-center text-slate-500">Haz clic en "ADD USERS" y agrega tu correo.</p>
+                                        </div>
+
+                                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
+                                            <p className="text-[9px] text-orange-800 dark:text-orange-200 mb-1 font-bold">🟠 Error 400: redirect_uri_mismatch</p>
+                                            <div className="flex gap-1 mb-2">
                                                 <code className="flex-1 bg-white dark:bg-black p-1.5 rounded text-[10px] truncate font-mono text-primary-600 dark:text-primary-300">{window.location.origin}</code>
                                                 <button onClick={handleCopyOrigin} className="bg-primary-600 text-white p-1 px-2 rounded text-[10px] font-bold">Copiar</button>
                                             </div>
-                                            {isDynamicDomain && <p className="text-[8px] text-orange-600 dark:text-orange-400 mt-1">⚠️ Dominio sandbox (Google suele bloquearlos).</p>}
-                                            {isVercel && <p className="text-[8px] text-green-600 dark:text-green-400 mt-1">✅ Dominio Vercel (Debe funcionar).</p>}
-                                        </div>
-
-                                        <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700">
-                                            <p className="text-[9px] text-slate-500 uppercase font-bold mb-2">Checklist en Google Cloud:</p>
-                                            <ul className="space-y-1.5">
-                                                <li className="flex gap-2 items-start text-[9px] text-slate-700 dark:text-slate-300">
-                                                    <Icon name="check_circle" className="text-[11px] text-green-500 mt-0.5" />
-                                                    <span>Origen pegado en <strong>"Orígenes de JavaScript autorizados"</strong> (NO en redirección).</span>
-                                                </li>
-                                                <li className="flex gap-2 items-start text-[9px] text-slate-700 dark:text-slate-300">
-                                                    <Icon name="check_circle" className="text-[11px] text-green-500 mt-0.5" />
-                                                    <span>La URL <strong>no termina en "/"</strong> (ej: .app, no .app/).</span>
-                                                </li>
-                                            </ul>
+                                            <p className="text-[8px] leading-tight text-slate-600 dark:text-slate-400">Pega esto en <strong>"Orígenes de JavaScript autorizados"</strong> en tu consola de Google.</p>
                                         </div>
 
                                         <div>
-                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-1">2. Tu Client ID:</p>
+                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-1 font-bold">ID de Cliente:</p>
                                             <input 
                                                 value={clientIdInput} 
                                                 onChange={e => setClientIdInput(e.target.value)}
                                                 placeholder="XXXXXXXX.apps.googleusercontent.com"
                                                 className="w-full bg-slate-100 dark:bg-black p-2 rounded text-[10px] border border-slate-300 dark:border-slate-700 mb-2 text-white outline-none focus:border-primary-500"
                                             />
-                                        </div>
-
-                                        <div className="flex gap-2">
-                                            <button onClick={handleSaveClientId} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold shadow-md active:scale-95 transition">Guardar ID</button>
-                                            <button onClick={() => window.open('https://console.cloud.google.com/apis/credentials', '_blank')} className="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold border border-slate-300 dark:border-slate-600">Abrir Consola</button>
+                                            <button onClick={handleSaveClientId} className="w-full py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold shadow-md">Guardar ID</button>
                                         </div>
                                     </div>
                                 </div>
