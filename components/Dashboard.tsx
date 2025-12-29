@@ -59,22 +59,10 @@ export const Dashboard = React.memo(() => {
   const animatedValue = useCountUp(stats.portfolioValue);
   const animatedTotal = useCountUp(tastings.length);
 
-  const alerts = useMemo(() => {
-      const openBottles = tastings.filter(t => t.openDate);
-      const expiringSoon = tastings.filter(t => {
-          if (t.stock === 0) return false;
-          const status = getDrinkingStatus(t.drinkFrom, t.drinkTo);
-          const currentYear = new Date().getFullYear();
-          const toYear = t.drinkTo ? parseInt(t.drinkTo) : 9999;
-          return status === 'PAST' || (toYear === currentYear);
-      });
-      return { openBottles, expiringSoon };
-  }, [tastings]);
-
   const handleCopyOrigin = () => {
       const origin = window.location.origin;
       navigator.clipboard.writeText(origin);
-      showToast("URL de Origen Copiada", 'success');
+      showToast("URL Copiada", 'success');
   };
 
   const handleSaveClientId = () => {
@@ -86,6 +74,8 @@ export const Dashboard = React.memo(() => {
   const isDynamicDomain = window.location.hostname.includes('usercontent.goog') || 
                           window.location.hostname.includes('webcontainer') ||
                           window.location.hostname.includes('codesandbox');
+  
+  const isVercel = window.location.hostname.includes('vercel.app');
 
   const themes = [
       { name: 'Azul', color: '#3b82f6' },
@@ -224,26 +214,35 @@ export const Dashboard = React.memo(() => {
                             
                             {showCloudDev && (
                                 <div className="bg-white dark:bg-slate-900/80 p-3 rounded-lg border border-blue-300 dark:border-blue-700 mb-3 animate-slide-up shadow-inner">
-                                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-300 mb-2 flex items-center gap-1"><Icon name="report" className="text-xs" /> Solución al Error 400:</p>
+                                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-300 mb-2 flex items-center gap-1"><Icon name="report" className="text-xs" /> Diagnóstico Error 400:</p>
                                     
                                     <div className="space-y-3">
-                                        <div>
-                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-1">1. Copia tu origen actual:</p>
+                                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-100 dark:border-blue-800">
+                                            <p className="text-[9px] text-blue-800 dark:text-blue-200 mb-1 font-bold">1. Tu Origen Actual:</p>
                                             <div className="flex gap-1">
-                                                <code className="flex-1 bg-slate-100 dark:bg-black p-1.5 rounded text-[10px] truncate font-mono text-primary-600 dark:text-primary-300">{window.location.origin}</code>
-                                                <button onClick={handleCopyOrigin} className="bg-primary-600 text-white p-1 px-2 rounded text-[10px] font-bold active:scale-95 transition">Copiar</button>
+                                                <code className="flex-1 bg-white dark:bg-black p-1.5 rounded text-[10px] truncate font-mono text-primary-600 dark:text-primary-300">{window.location.origin}</code>
+                                                <button onClick={handleCopyOrigin} className="bg-primary-600 text-white p-1 px-2 rounded text-[10px] font-bold">Copiar</button>
                                             </div>
+                                            {isDynamicDomain && <p className="text-[8px] text-orange-600 dark:text-orange-400 mt-1">⚠️ Dominio sandbox (Google suele bloquearlos).</p>}
+                                            {isVercel && <p className="text-[8px] text-green-600 dark:text-green-400 mt-1">✅ Dominio Vercel (Debe funcionar).</p>}
                                         </div>
 
-                                        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded border border-yellow-200 dark:border-yellow-700/50">
-                                            <p className="text-[9px] text-yellow-800 dark:text-yellow-200 leading-tight">
-                                                <strong>¡Crucial!</strong> En tu consola de Google, pega la URL arriba en <strong>"Orígenes de JavaScript autorizados"</strong>. <br/> 
-                                                No la pegues en "URIs de redireccionamiento".
-                                            </p>
+                                        <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700">
+                                            <p className="text-[9px] text-slate-500 uppercase font-bold mb-2">Checklist en Google Cloud:</p>
+                                            <ul className="space-y-1.5">
+                                                <li className="flex gap-2 items-start text-[9px] text-slate-700 dark:text-slate-300">
+                                                    <Icon name="check_circle" className="text-[11px] text-green-500 mt-0.5" />
+                                                    <span>Origen pegado en <strong>"Orígenes de JavaScript autorizados"</strong> (NO en redirección).</span>
+                                                </li>
+                                                <li className="flex gap-2 items-start text-[9px] text-slate-700 dark:text-slate-300">
+                                                    <Icon name="check_circle" className="text-[11px] text-green-500 mt-0.5" />
+                                                    <span>La URL <strong>no termina en "/"</strong> (ej: .app, no .app/).</span>
+                                                </li>
+                                            </ul>
                                         </div>
 
                                         <div>
-                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-1">2. Pega tu Client ID aquí:</p>
+                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-1">2. Tu Client ID:</p>
                                             <input 
                                                 value={clientIdInput} 
                                                 onChange={e => setClientIdInput(e.target.value)}
@@ -257,15 +256,13 @@ export const Dashboard = React.memo(() => {
                                             <button onClick={() => window.open('https://console.cloud.google.com/apis/credentials', '_blank')} className="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold border border-slate-300 dark:border-slate-600">Abrir Consola</button>
                                         </div>
                                     </div>
-                                    
-                                    {isDynamicDomain && <p className="text-[9px] text-red-500 font-bold mt-3 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">⚠ Google bloquea OAuth en dominios temporales de previsualización. Úsalo en un dominio propio o localhost.</p>}
                                 </div>
                             )}
 
                             {!isCloudConnected ? (
                                 <button 
                                     onClick={connectCloud} 
-                                    disabled={isDynamicDomain || isSyncing !== 'idle'} 
+                                    disabled={isSyncing !== 'idle'} 
                                     className={`w-full py-3 bg-white dark:bg-primary-500 text-primary-700 dark:text-white border border-primary-200 dark:border-transparent rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-primary-50 dark:hover:bg-primary-600 transition shadow-sm`}
                                 >
                                     <Icon name="login" className="text-sm" /> 
