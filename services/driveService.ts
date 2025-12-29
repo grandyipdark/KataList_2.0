@@ -3,7 +3,7 @@ import { CloudFile } from "../types";
 
 declare var google: any;
 
-// ID por defecto (Solo funciona en dominios autorizados por el desarrollador original)
+// ID por defecto
 const DEFAULT_CLIENT_ID = '472540050424-g4doacvt1pfe817tk9jtodcdcmfn62ui.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 const BACKUP_FILENAME = 'katalist_backup.json';
@@ -16,44 +16,51 @@ export const driveService = {
     
     setClientId: (id: string) => {
         localStorage.setItem('kata_drive_client_id', id);
-        tokenClient = null; // Forzar reinicialización
+        tokenClient = null; // Forzar reinicialización total
     },
 
-    init: (): Promise<void> => {
-        return new Promise((resolve, reject) => {
-            if (typeof google === 'undefined' || !google.accounts) {
-                reject("Google SDK no cargado. Revisa tu conexión.");
-                return;
-            }
+    init: (onSuccess?: (token: string) => void, onError?: (err: any) => void): void => {
+        if (typeof google === 'undefined' || !google.accounts) {
+            console.error("Google SDK no cargado.");
+            return;
+        }
 
-            try {
-                tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: driveService.getClientId(),
-                    scope: SCOPES,
-                    callback: (response: any) => {
-                        if (response.error) {
-                            reject(response.error);
-                            return;
-                        }
-                        accessToken = response.access_token;
-                        localStorage.setItem('kata_cloud_connected', 'true');
-                        resolve();
-                    },
-                });
-                resolve();
-            } catch (e) {
-                reject(e);
-            }
-        });
+        try {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: driveService.getClientId(),
+                scope: SCOPES,
+                callback: (response: any) => {
+                    if (response.error) {
+                        if (onError) onError(response);
+                        return;
+                    }
+                    accessToken = response.access_token;
+                    localStorage.setItem('kata_cloud_connected', 'true');
+                    if (onSuccess) onSuccess(response.access_token);
+                },
+            });
+        } catch (e) {
+            console.error("Error inicializando cliente de Google", e);
+        }
     },
 
     signIn: (): Promise<string> => {
         return new Promise((resolve, reject) => {
+            // Aseguramos que el SDK esté disponible
+            if (typeof google === 'undefined') {
+                reject("Librería de Google no disponible. Reintenta en unos segundos.");
+                return;
+            }
+
+            // Definimos el comportamiento de éxito/error antes de lanzar el popup
+            const handleSuccess = (token: string) => resolve(token);
+            const handleError = (err: any) => reject(err);
+
+            // Si no existe el cliente o el Client ID cambió, reiniciamos
             if (!tokenClient) {
-                driveService.init().then(() => {
-                    tokenClient.requestAccessToken({ prompt: 'consent' });
-                }).catch(reject);
+                driveService.init(handleSuccess, handleError);
             } else {
+                // Actualizar callbacks para la sesión actual
                 tokenClient.callback = (response: any) => {
                     if (response.access_token) {
                         accessToken = response.access_token;
@@ -63,17 +70,24 @@ export const driveService = {
                         reject(response.error || "Permiso denegado.");
                     }
                 };
-                tokenClient.requestAccessToken();
+            }
+
+            // Lanzar el popup de Google
+            try {
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            } catch (e) {
+                reject("Fallo al abrir ventana de Google. Revisa bloqueadores de popups.");
             }
         });
     },
 
     logout: () => {
-        accessToken = null;
-        localStorage.removeItem('kata_cloud_connected');
-        if (typeof google !== 'undefined' && accessToken) {
+        if (accessToken && typeof google !== 'undefined') {
             google.accounts.oauth2.revoke(accessToken);
         }
+        accessToken = null;
+        tokenClient = null;
+        localStorage.removeItem('kata_cloud_connected');
     },
 
     findBackupFile: async (): Promise<CloudFile | null> => {
