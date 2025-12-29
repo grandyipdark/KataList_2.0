@@ -74,7 +74,7 @@ export const Dashboard = React.memo(() => {
   const handleCopyOrigin = () => {
       const origin = window.location.origin;
       navigator.clipboard.writeText(origin);
-      showToast("URL Copiada", 'success');
+      showToast("URL de Origen Copiada", 'success');
   };
 
   const handleSaveClientId = () => {
@@ -198,7 +198,7 @@ export const Dashboard = React.memo(() => {
 
       {settingsOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={() => setSettingsOpen(false)}>
-              <div className="bg-white dark:bg-dark-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="bg-white dark:bg-dark-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-800 rounded-t-2xl">
                       <h3 className="text-xl font-serif font-bold text-slate-900 dark:text-white">Configuración</h3>
                       <button onClick={() => setSettingsOpen(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><Icon name="close" className="text-slate-400" /></button>
@@ -219,35 +219,53 @@ export const Dashboard = React.memo(() => {
                                     <span className="text-xs font-bold text-blue-700 dark:text-blue-100">Google Drive</span>
                                     {isSyncing !== 'idle' && <Icon name="sync" className="text-blue-500 animate-spin text-sm" />}
                                 </div>
-                                <button onClick={() => setShowCloudDev(!showCloudDev)} className="text-[9px] bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-600 font-bold uppercase">Configurar ID</button>
+                                <button onClick={() => setShowCloudDev(!showCloudDev)} className="text-[9px] bg-blue-600 text-white px-2 py-0.5 rounded border border-blue-500 font-bold uppercase shadow-sm">Configurar ID</button>
                             </div>
                             
                             {showCloudDev && (
-                                <div className="bg-white dark:bg-slate-900/80 p-3 rounded-lg border border-blue-300 dark:border-blue-700 mb-3 animate-slide-up">
-                                    <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-2">Paso 1: Copia tu URL de origen</p>
-                                    <div className="flex gap-1 mb-3">
-                                        <code className="flex-1 bg-slate-100 dark:bg-black p-1.5 rounded text-[10px] truncate font-mono">{window.location.origin}</code>
-                                        <button onClick={handleCopyOrigin} className="bg-slate-200 dark:bg-slate-700 p-1 px-2 rounded text-[10px] font-bold">Copiar</button>
+                                <div className="bg-white dark:bg-slate-900/80 p-3 rounded-lg border border-blue-300 dark:border-blue-700 mb-3 animate-slide-up shadow-inner">
+                                    <p className="text-[10px] font-bold text-blue-600 dark:text-blue-300 mb-2 flex items-center gap-1"><Icon name="report" className="text-xs" /> Solución al Error 400:</p>
+                                    
+                                    <div className="space-y-3">
+                                        <div>
+                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-1">1. Copia tu origen actual:</p>
+                                            <div className="flex gap-1">
+                                                <code className="flex-1 bg-slate-100 dark:bg-black p-1.5 rounded text-[10px] truncate font-mono text-primary-600 dark:text-primary-300">{window.location.origin}</code>
+                                                <button onClick={handleCopyOrigin} className="bg-primary-600 text-white p-1 px-2 rounded text-[10px] font-bold active:scale-95 transition">Copiar</button>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded border border-yellow-200 dark:border-yellow-700/50">
+                                            <p className="text-[9px] text-yellow-800 dark:text-yellow-200 leading-tight">
+                                                <strong>¡Crucial!</strong> En tu consola de Google, pega la URL arriba en <strong>"Orígenes de JavaScript autorizados"</strong>. <br/> 
+                                                No la pegues en "URIs de redireccionamiento".
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-1">2. Pega tu Client ID aquí:</p>
+                                            <input 
+                                                value={clientIdInput} 
+                                                onChange={e => setClientIdInput(e.target.value)}
+                                                placeholder="XXXXXXXX.apps.googleusercontent.com"
+                                                className="w-full bg-slate-100 dark:bg-black p-2 rounded text-[10px] border border-slate-300 dark:border-slate-700 mb-2 text-white outline-none focus:border-primary-500"
+                                            />
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <button onClick={handleSaveClientId} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold shadow-md active:scale-95 transition">Guardar ID</button>
+                                            <button onClick={() => window.open('https://console.cloud.google.com/apis/credentials', '_blank')} className="px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold border border-slate-300 dark:border-slate-600">Abrir Consola</button>
+                                        </div>
                                     </div>
-                                    <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-2">Paso 2: Pega tu Client ID de Google Cloud</p>
-                                    <input 
-                                        value={clientIdInput} 
-                                        onChange={e => setClientIdInput(e.target.value)}
-                                        placeholder="Tu Client ID..."
-                                        className="w-full bg-slate-100 dark:bg-black p-2 rounded text-[10px] border border-slate-300 dark:border-slate-700 mb-2 text-white outline-none"
-                                    />
-                                    <div className="flex gap-2">
-                                        <button onClick={handleSaveClientId} className="flex-1 py-1.5 bg-blue-600 text-white rounded text-[10px] font-bold">Guardar ID</button>
-                                        <button onClick={() => window.open('https://console.cloud.google.com/apis/credentials', '_blank')} className="px-2 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded text-[10px] font-bold">Abrir Consola</button>
-                                    </div>
-                                    {isDynamicDomain && <p className="text-[9px] text-red-500 font-bold mt-2">⚠ Google bloquea OAuth en este dominio de previsualización. Úsalo en producción o localhost.</p>}
+                                    
+                                    {isDynamicDomain && <p className="text-[9px] text-red-500 font-bold mt-3 p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">⚠ Google bloquea OAuth en dominios temporales de previsualización. Úsalo en un dominio propio o localhost.</p>}
                                 </div>
                             )}
 
                             {!isCloudConnected ? (
                                 <button 
                                     onClick={connectCloud} 
-                                    disabled={isSyncing !== 'idle'} 
+                                    disabled={isDynamicDomain || isSyncing !== 'idle'} 
                                     className={`w-full py-3 bg-white dark:bg-primary-500 text-primary-700 dark:text-white border border-primary-200 dark:border-transparent rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-primary-50 dark:hover:bg-primary-600 transition shadow-sm`}
                                 >
                                     <Icon name="login" className="text-sm" /> 
