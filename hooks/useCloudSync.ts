@@ -11,18 +11,15 @@ export const useCloudSync = (
     const [cloudLastSync, setCloudLastSync] = useState<string | null>(null);
     const [isSyncing, setIsSyncing] = useState<'idle' | 'connecting' | 'uploading' | 'downloading'>('idle');
 
-    // Reconexión automática al iniciar
     useEffect(() => {
         const wasConnected = localStorage.getItem('kata_cloud_connected') === 'true';
         if (wasConnected) {
-            // Intentar verificar conexión silenciosamente
             driveService.findBackupFile()
                 .then(file => {
                     setIsCloudConnected(true);
                     if (file) setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
                 })
                 .catch(() => {
-                    // Si falla (token expirado), no forzamos login pero marcamos como desconectado visualmente
                     setIsCloudConnected(false);
                 });
         }
@@ -35,19 +32,17 @@ export const useCloudSync = (
             setIsCloudConnected(true);
             showToast("Conectado a Google Drive", 'success');
             
-            // Buscar backup inmediatamente tras conectar
             const file = await driveService.findBackupFile();
             if (file) {
                 setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
                 showToast("Copia de seguridad encontrada", 'info');
             }
         } catch (e: any) {
-            console.error(e);
+            console.error("Cloud Connection Error:", e);
             setIsCloudConnected(false);
-            const msg = typeof e === 'string' && e.includes('popup_closed') 
-                ? "Ventana cerrada por el usuario" 
-                : "Error de conexión. Verifica el dominio.";
-            showToast(msg, 'error');
+            // Mostrar el mensaje de error real que viene del servicio
+            const errorMsg = typeof e === 'string' ? e : (e.error || "Error de conexión");
+            showToast(errorMsg, 'error');
         } finally {
             setIsSyncing('idle');
         }
@@ -58,21 +53,20 @@ export const useCloudSync = (
         setIsSyncing('uploading');
         try {
             const data = await exportData(true);
-            // Validar tamaño aproximado (Drive AppData tiene límites razonables, pero JS puede sufrir con strings gigantes)
             if (data.length > 50 * 1024 * 1024) {
-                showToast("Base de datos muy grande. Puede tardar...", "info");
+                showToast("Base de datos pesada. Sincronizando...", "info");
             }
             
             await driveService.uploadBackup(data);
             setCloudLastSync(new Date().toLocaleString());
-            showToast("Backup subido exitosamente", 'success');
+            showToast("Copia de seguridad subida", 'success');
         } catch (e: any) {
             console.error(e);
             if (e.message === "AUTH_EXPIRED") {
-                showToast("Sesión expirada. Reconectando...", "info");
+                showToast("Sesión caducada. Reconectando...", "info");
                 await connectCloud();
             } else {
-                showToast("Error al subir. Intenta de nuevo.", 'error');
+                showToast("Fallo al subir datos", 'error');
             }
         } finally {
             setIsSyncing('idle');
@@ -85,7 +79,7 @@ export const useCloudSync = (
         try {
             const file = await driveService.findBackupFile();
             if (!file) {
-                showToast("No se encontró ningún archivo en la nube", 'error');
+                showToast("No hay archivos en la nube", 'error');
                 return;
             }
             
@@ -94,13 +88,13 @@ export const useCloudSync = (
             
             if (success) {
                 setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
-                showToast("Sincronización completada", 'success');
+                showToast("Restauración completada", 'success');
             } else {
-                showToast("El archivo de la nube no es válido", 'error');
+                showToast("Archivo corrupto o inválido", 'error');
             }
         } catch (e: any) {
             console.error(e);
-            showToast("Error al restaurar datos.", 'error');
+            showToast("Error al descargar datos.", 'error');
         } finally {
             setIsSyncing('idle');
         }
