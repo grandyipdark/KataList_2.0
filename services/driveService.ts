@@ -3,8 +3,8 @@ import { CloudFile } from "../types";
 
 declare var google: any;
 
-// Credenciales vinculadas al proyecto KataList
-const CLIENT_ID = '472540050424-g4doacvt1pfe817tk9jtodcdcmfn62ui.apps.googleusercontent.com';
+// ID por defecto (Solo funciona en dominios autorizados por el desarrollador original)
+const DEFAULT_CLIENT_ID = '472540050424-g4doacvt1pfe817tk9jtodcdcmfn62ui.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 const BACKUP_FILENAME = 'katalist_backup.json';
 
@@ -12,17 +12,23 @@ let accessToken: string | null = null;
 let tokenClient: any = null;
 
 export const driveService = {
-    // Inicializar el cliente de Google Identity Services
+    getClientId: () => localStorage.getItem('kata_drive_client_id') || DEFAULT_CLIENT_ID,
+    
+    setClientId: (id: string) => {
+        localStorage.setItem('kata_drive_client_id', id);
+        tokenClient = null; // Forzar reinicialización
+    },
+
     init: (): Promise<void> => {
         return new Promise((resolve, reject) => {
-            if (typeof google === 'undefined') {
-                reject("Google API no detectada. Revisa tu conexión a internet.");
+            if (typeof google === 'undefined' || !google.accounts) {
+                reject("Google SDK no cargado. Revisa tu conexión.");
                 return;
             }
 
             try {
                 tokenClient = google.accounts.oauth2.initTokenClient({
-                    client_id: CLIENT_ID,
+                    client_id: driveService.getClientId(),
                     scope: SCOPES,
                     callback: (response: any) => {
                         if (response.error) {
@@ -30,7 +36,6 @@ export const driveService = {
                             return;
                         }
                         accessToken = response.access_token;
-                        // Guardamos una bandera de "conectado" pero no el token (por seguridad y expiración)
                         localStorage.setItem('kata_cloud_connected', 'true');
                         resolve();
                     },
@@ -49,14 +54,13 @@ export const driveService = {
                     tokenClient.requestAccessToken({ prompt: 'consent' });
                 }).catch(reject);
             } else {
-                // Si ya tenemos tokenClient, pedimos acceso
                 tokenClient.callback = (response: any) => {
                     if (response.access_token) {
                         accessToken = response.access_token;
                         localStorage.setItem('kata_cloud_connected', 'true');
                         resolve(response.access_token);
                     } else {
-                        reject("Permiso denegado por el usuario.");
+                        reject(response.error || "Permiso denegado.");
                     }
                 };
                 tokenClient.requestAccessToken();
@@ -67,13 +71,13 @@ export const driveService = {
     logout: () => {
         accessToken = null;
         localStorage.removeItem('kata_cloud_connected');
+        if (typeof google !== 'undefined' && accessToken) {
+            google.accounts.oauth2.revoke(accessToken);
+        }
     },
-
-    isAuthenticated: () => !!accessToken,
 
     findBackupFile: async (): Promise<CloudFile | null> => {
         if (!accessToken) {
-            // Intento de re-autenticación silenciosa si la bandera existe
             if (localStorage.getItem('kata_cloud_connected')) {
                 await driveService.signIn();
             } else {
@@ -93,7 +97,7 @@ export const driveService = {
             throw new Error("AUTH_EXPIRED");
         }
         
-        if (!res.ok) throw new Error("Error al buscar en Drive.");
+        if (!res.ok) throw new Error("Error en Google Drive");
         
         const data = await res.json();
         return (data.files && data.files.length > 0) ? data.files[0] : null;
@@ -126,7 +130,7 @@ export const driveService = {
             body: form
         });
 
-        if (!res.ok) throw new Error("Fallo al subir el archivo.");
+        if (!res.ok) throw new Error("Error al subir archivo");
     },
 
     downloadBackup: async (fileId: string): Promise<string> => {
@@ -137,7 +141,7 @@ export const driveService = {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
 
-        if (!res.ok) throw new Error("Fallo al descargar el archivo.");
+        if (!res.ok) throw new Error("Error al descargar backup");
         return await res.text();
     }
 };

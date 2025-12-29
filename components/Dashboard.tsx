@@ -29,9 +29,10 @@ export const Dashboard = React.memo(() => {
   const { tastings, setView, setSelectedTasting, categories, toggleOledMode, isOledMode, toggleLightMode, isLightMode, exportData, importData, exportCSV, currency, setCurrency, accentColor, setAccentColor, userProfile, isCloudConnected, cloudLastSync, connectCloud, uploadToCloud, downloadFromCloud, isSyncing, showToast, scoreScale, setScoreScale, installPrompt, installApp } = useKataContext();
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [backupTypeOpen, setBackupTypeOpen] = useState(false);
   const [showValue, setShowValue] = useState(false);
   const [dailyTip, setDailyTip] = useState(TIPS[0]);
+  const [showCloudDev, setShowCloudDev] = useState(false);
+  const [clientIdInput, setClientIdInput] = useState(driveService.getClientId());
 
   useEffect(() => {
       const now = new Date();
@@ -70,22 +71,16 @@ export const Dashboard = React.memo(() => {
       return { openBottles, expiringSoon };
   }, [tastings]);
 
-  const handleBackup = async (includeImages: boolean) => {
-      setBackupTypeOpen(false);
-      setSettingsOpen(false);
-      const data = await exportData(includeImages);
-      const blob = new Blob([data], {type: 'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `katalist_backup_${includeImages ? 'full' : 'text'}.json`;
-      a.click();
-  };
-
   const handleCopyOrigin = () => {
       const origin = window.location.origin;
       navigator.clipboard.writeText(origin);
-      showToast("URL Copiada. Pégala en tu Consola de Google Cloud.", 'success');
+      showToast("URL Copiada", 'success');
+  };
+
+  const handleSaveClientId = () => {
+      driveService.setClientId(clientIdInput);
+      showToast("ID de Cliente guardado", "success");
+      setShowCloudDev(false);
   };
 
   const isDynamicDomain = window.location.hostname.includes('usercontent.goog') || 
@@ -127,7 +122,6 @@ export const Dashboard = React.memo(() => {
         </button>
       </div>
 
-      {/* Profile summary card */}
       <div onClick={() => setView('PROFILE')} className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 rounded-2xl border border-primary-500/30 shadow-lg relative overflow-hidden cursor-pointer group active:scale-[0.99] transition z-10">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><Icon name="military_tech" className="text-6xl text-white" /></div>
           <div className="flex items-center gap-4 relative z-10">
@@ -202,26 +196,6 @@ export const Dashboard = React.memo(() => {
           </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 relative z-10">
-          <button onClick={() => setView('INSIGHTS')} className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-indigo-500/30 shadow flex items-center gap-3 active:scale-[0.99] transition">
-              <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-500 dark:text-indigo-400"><Icon name="monitoring" className="text-xl" /></div>
-              <div className="text-left leading-tight"><span className="block font-bold text-sm text-slate-900 dark:text-white">Insights</span><span className="text-[10px] text-indigo-400 dark:text-indigo-200/70">Estadísticas</span></div>
-          </button>
-          <button onClick={() => setView('CHEF')} className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-orange-500/30 shadow flex items-center gap-3 active:scale-[0.99] transition">
-              <div className="w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-500 dark:text-orange-400"><Icon name="chef_hat" className="text-xl" /></div>
-              <div className="text-left leading-tight"><span className="block font-bold text-sm text-slate-900 dark:text-white">Chef Mode</span><span className="text-[10px] text-orange-400 dark:text-orange-200/70">Maridaje</span></div>
-          </button>
-          <button onClick={() => setView('MIXOLOGY')} className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-pink-500/30 shadow flex items-center gap-3 active:scale-[0.99] transition">
-              <div className="w-10 h-10 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-pink-500 dark:text-pink-400"><Icon name="local_bar" className="text-xl" /></div>
-              <div className="text-left leading-tight"><span className="block font-bold text-sm text-slate-900 dark:text-white">Bartender</span><span className="text-[10px] text-pink-400 dark:text-pink-200/70">Cócteles</span></div>
-          </button>
-          <button onClick={() => setView('BLIND')} className="p-4 rounded-xl bg-white dark:bg-slate-800 border border-purple-500/30 shadow flex items-center gap-3 active:scale-[0.99] transition">
-              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-purple-500 dark:text-purple-400"><Icon name="visibility_off" className="text-xl" /></div>
-              <div className="text-left leading-tight"><span className="block font-bold text-sm text-slate-900 dark:text-white">A Ciegas</span><span className="text-[10px] text-purple-400 dark:text-purple-200/70">Entrenamiento</span></div>
-          </button>
-      </div>
-
-      {/* Settings Modal */}
       {settingsOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={() => setSettingsOpen(false)}>
               <div className="bg-white dark:bg-dark-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -239,30 +213,36 @@ export const Dashboard = React.memo(() => {
                     <div>
                         <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Sincronización Nube</h4>
                         <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-200 dark:border-blue-500/20">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Icon name="cloud" className="text-blue-500 dark:text-blue-400" />
-                                <span className="text-xs font-bold text-blue-700 dark:text-blue-100">Google Drive</span>
-                                {isSyncing !== 'idle' && <Icon name="sync" className="text-blue-500 animate-spin text-sm" />}
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <Icon name="cloud" className="text-blue-500 dark:text-blue-400" />
+                                    <span className="text-xs font-bold text-blue-700 dark:text-blue-100">Google Drive</span>
+                                    {isSyncing !== 'idle' && <Icon name="sync" className="text-blue-500 animate-spin text-sm" />}
+                                </div>
+                                <button onClick={() => setShowCloudDev(!showCloudDev)} className="text-[9px] bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-600 font-bold uppercase">Configurar ID</button>
                             </div>
                             
-                            {/* ERROR 400 TROUBLESHOOTING TOOL */}
-                            <div className="bg-white dark:bg-slate-900/50 p-2.5 rounded-lg border border-blue-200 dark:border-blue-500/30 mb-3">
-                                <p className="text-[10px] font-bold text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-1">
-                                    <Icon name="security" className="text-[11px]" /> ¿Error 400 en Google?
-                                </p>
-                                <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-2 leading-tight">
-                                    Si ves "Acceso bloqueado", pulsa abajo y añade esta URL en "Orígenes de JavaScript autorizados" de tu consola de Google Cloud.
-                                </p>
-                                <div className="flex gap-2">
-                                    <code className="flex-1 bg-black/5 dark:bg-black/50 p-1.5 rounded text-[9px] text-slate-700 dark:text-blue-100 truncate font-mono">{window.location.origin}</code>
-                                    <button 
-                                        onClick={handleCopyOrigin} 
-                                        className="bg-blue-600 text-white text-[9px] px-2 py-1 rounded font-bold hover:bg-blue-500 active:scale-95 transition"
-                                    >
-                                        Copiar URL
-                                    </button>
+                            {showCloudDev && (
+                                <div className="bg-white dark:bg-slate-900/80 p-3 rounded-lg border border-blue-300 dark:border-blue-700 mb-3 animate-slide-up">
+                                    <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-2">Paso 1: Copia tu URL de origen</p>
+                                    <div className="flex gap-1 mb-3">
+                                        <code className="flex-1 bg-slate-100 dark:bg-black p-1.5 rounded text-[10px] truncate font-mono">{window.location.origin}</code>
+                                        <button onClick={handleCopyOrigin} className="bg-slate-200 dark:bg-slate-700 p-1 px-2 rounded text-[10px] font-bold">Copiar</button>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-600 dark:text-slate-300 mb-2">Paso 2: Pega tu Client ID de Google Cloud</p>
+                                    <input 
+                                        value={clientIdInput} 
+                                        onChange={e => setClientIdInput(e.target.value)}
+                                        placeholder="Tu Client ID..."
+                                        className="w-full bg-slate-100 dark:bg-black p-2 rounded text-[10px] border border-slate-300 dark:border-slate-700 mb-2 text-white outline-none"
+                                    />
+                                    <div className="flex gap-2">
+                                        <button onClick={handleSaveClientId} className="flex-1 py-1.5 bg-blue-600 text-white rounded text-[10px] font-bold">Guardar ID</button>
+                                        <button onClick={() => window.open('https://console.cloud.google.com/apis/credentials', '_blank')} className="px-2 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded text-[10px] font-bold">Abrir Consola</button>
+                                    </div>
+                                    {isDynamicDomain && <p className="text-[9px] text-red-500 font-bold mt-2">⚠ Google bloquea OAuth en este dominio de previsualización. Úsalo en producción o localhost.</p>}
                                 </div>
-                            </div>
+                            )}
 
                             {!isCloudConnected ? (
                                 <button 
