@@ -5,6 +5,7 @@ import { useKataContext, ScoreScaleType } from '../context/KataContext';
 import { Icon, NeonWineIcon, SeasonalBackground } from './Shared';
 import { getCountryFlag, getCategoryColor, getPriceVal, getDrinkingStatus } from '../utils/helpers';
 import { TIPS } from '../utils/tipsData';
+import { driveService } from '../services/driveService';
 
 const useCountUp = (end: number, duration: number = 1500) => {
     const [count, setCount] = useState(0);
@@ -25,7 +26,7 @@ const useCountUp = (end: number, duration: number = 1500) => {
 };
 
 export const Dashboard = React.memo(() => {
-  const { tastings, setView, setSelectedTasting, categories, toggleOledMode, isOledMode, toggleLightMode, isLightMode, exportData, importData, exportCSV, currency, setCurrency, accentColor, setAccentColor, userProfile, isCloudConnected, cloudLastSync, connectCloud, uploadToCloud, downloadFromCloud, showToast, scoreScale, setScoreScale, installPrompt, installApp } = useKataContext();
+  const { tastings, setView, setSelectedTasting, categories, toggleOledMode, isOledMode, toggleLightMode, isLightMode, exportData, importData, exportCSV, currency, setCurrency, accentColor, setAccentColor, userProfile, isCloudConnected, cloudLastSync, connectCloud, uploadToCloud, downloadFromCloud, isSyncing, showToast, scoreScale, setScoreScale, installPrompt, installApp } = useKataContext();
   const navigate = useNavigate();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [backupTypeOpen, setBackupTypeOpen] = useState(false);
@@ -82,8 +83,9 @@ export const Dashboard = React.memo(() => {
   };
 
   const handleCopyOrigin = () => {
-      navigator.clipboard.writeText(window.location.origin);
-      showToast("URL copiada. Añádela a Google Cloud.", 'success');
+      const origin = window.location.origin;
+      navigator.clipboard.writeText(origin);
+      showToast("URL Copiada. Pégala en tu Consola de Google Cloud.", 'success');
   };
 
   const isDynamicDomain = window.location.hostname.includes('usercontent.goog') || 
@@ -110,7 +112,7 @@ export const Dashboard = React.memo(() => {
                     <div className="absolute inset-0 bg-primary-500/20 blur-lg rounded-full"></div>
                     <NeonWineIcon className="w-8 h-8 relative z-10" />
                 </div>
-                <h1 className="text-3xl font-serif font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:via-primary-100 dark:to-slate-400 drop-shadow-sm">
+                <h1 className="text-3xl font-serif font-bold italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:via-primary-100 dark:to-slate-400 drop-shadow-sm">
                     KataList
                 </h1>
             </div>
@@ -125,7 +127,8 @@ export const Dashboard = React.memo(() => {
         </button>
       </div>
 
-      <div onClick={() => setView('PROFILE')} className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 rounded-2xl border border-slate-700/50 shadow-lg relative overflow-hidden cursor-pointer group active:scale-[0.99] transition z-10">
+      {/* Profile summary card */}
+      <div onClick={() => setView('PROFILE')} className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 rounded-2xl border border-primary-500/30 shadow-lg relative overflow-hidden cursor-pointer group active:scale-[0.99] transition z-10">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><Icon name="military_tech" className="text-6xl text-white" /></div>
           <div className="flex items-center gap-4 relative z-10">
               <div className="w-14 h-14 rounded-full bg-slate-800 border-2 border-primary-500 flex items-center justify-center shadow-lg shadow-primary-900/30">
@@ -218,34 +221,10 @@ export const Dashboard = React.memo(() => {
           </button>
       </div>
 
-      {(alerts.openBottles.length > 0 || alerts.expiringSoon.length > 0) && (
-          <div className="bg-gradient-to-r from-orange-100/50 to-red-100/50 dark:from-orange-900/20 dark:to-red-900/20 p-3 rounded-xl border border-orange-500/20 relative z-10 animate-slide-up">
-              <h4 className="text-[10px] font-bold text-orange-600 dark:text-orange-200 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <Icon name="notifications_active" className="text-xs animate-pulse" /> Alertas de Consumo
-              </h4>
-              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-                  {alerts.openBottles.map(t => {
-                      const daysOpen = Math.floor((Date.now() - t.openDate!) / (1000 * 60 * 60 * 24));
-                      return (
-                          <div key={t.id} onClick={() => { setSelectedTasting(t); navigate(`/tasting/${t.id}`); }} className="min-w-[110px] bg-white dark:bg-dark-900/90 p-2 rounded-lg border border-orange-500/20 cursor-pointer flex flex-col gap-0.5 active:scale-95 transition shadow-sm">
-                              <span className="text-[9px] text-orange-500 dark:text-orange-400 font-bold flex items-center gap-1"><Icon name="timelapse" className="text-[10px]" /> {daysOpen}d abierto</span>
-                              <span className="text-[10px] font-bold text-slate-800 dark:text-white truncate w-full">{t.name}</span>
-                          </div>
-                      );
-                  })}
-                  {alerts.expiringSoon.map(t => (
-                      <div key={t.id} onClick={() => { setSelectedTasting(t); navigate(`/tasting/${t.id}`); }} className="min-w-[110px] bg-white dark:bg-dark-900/90 p-2 rounded-lg border border-red-500/20 cursor-pointer flex flex-col gap-0.5 active:scale-95 transition shadow-sm">
-                          <span className="text-[9px] text-red-500 dark:text-red-400 font-bold flex items-center gap-1"><Icon name="hourglass_bottom" className="text-[10px]" /> Beber Ya</span>
-                          <span className="text-[10px] font-bold text-slate-800 dark:text-white truncate w-full">{t.name}</span>
-                      </div>
-                  ))}
-              </div>
-          </div>
-      )}
-
+      {/* Settings Modal */}
       {settingsOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={() => setSettingsOpen(false)}>
-              <div className="bg-white dark:bg-dark-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="bg-white dark:bg-dark-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
                   <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-dark-800 rounded-t-2xl">
                       <h3 className="text-xl font-serif font-bold text-slate-900 dark:text-white">Configuración</h3>
                       <button onClick={() => setSettingsOpen(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><Icon name="close" className="text-slate-400" /></button>
@@ -258,11 +237,83 @@ export const Dashboard = React.memo(() => {
                     )}
 
                     <div>
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Sincronización Nube</h4>
+                        <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-200 dark:border-blue-500/20">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Icon name="cloud" className="text-blue-500 dark:text-blue-400" />
+                                <span className="text-xs font-bold text-blue-700 dark:text-blue-100">Google Drive</span>
+                                {isSyncing !== 'idle' && <Icon name="sync" className="text-blue-500 animate-spin text-sm" />}
+                            </div>
+                            
+                            {/* ERROR 400 TROUBLESHOOTING TOOL */}
+                            <div className="bg-white dark:bg-slate-900/50 p-2.5 rounded-lg border border-blue-200 dark:border-blue-500/30 mb-3">
+                                <p className="text-[10px] font-bold text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-1">
+                                    <Icon name="security" className="text-[11px]" /> ¿Error 400 en Google?
+                                </p>
+                                <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-2 leading-tight">
+                                    Si ves "Acceso bloqueado", pulsa abajo y añade esta URL en "Orígenes de JavaScript autorizados" de tu consola de Google Cloud.
+                                </p>
+                                <div className="flex gap-2">
+                                    <code className="flex-1 bg-black/5 dark:bg-black/50 p-1.5 rounded text-[9px] text-slate-700 dark:text-blue-100 truncate font-mono">{window.location.origin}</code>
+                                    <button 
+                                        onClick={handleCopyOrigin} 
+                                        className="bg-blue-600 text-white text-[9px] px-2 py-1 rounded font-bold hover:bg-blue-500 active:scale-95 transition"
+                                    >
+                                        Copiar URL
+                                    </button>
+                                </div>
+                            </div>
+
+                            {!isCloudConnected ? (
+                                <button 
+                                    onClick={connectCloud} 
+                                    disabled={isSyncing !== 'idle'} 
+                                    className={`w-full py-3 bg-white dark:bg-primary-500 text-primary-700 dark:text-white border border-primary-200 dark:border-transparent rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-primary-50 dark:hover:bg-primary-600 transition shadow-sm`}
+                                >
+                                    <Icon name="login" className="text-sm" /> 
+                                    {isSyncing === 'connecting' ? 'Conectando...' : 'Conectar Google Drive'}
+                                </button>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-[9px] text-slate-500 dark:text-slate-400">
+                                        <span>Último sync:</span>
+                                        <span className="text-slate-700 dark:text-white font-mono">{cloudLastSync || 'Primera vez'}</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={uploadToCloud} 
+                                            disabled={isSyncing !== 'idle'}
+                                            className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-md"
+                                        >
+                                            <Icon name={isSyncing === 'uploading' ? 'sync' : 'cloud_upload'} className={`text-sm ${isSyncing === 'uploading' ? 'animate-spin' : ''}`} /> 
+                                            {isSyncing === 'uploading' ? 'Subiendo...' : 'Subir'}
+                                        </button>
+                                        <button 
+                                            onClick={downloadFromCloud} 
+                                            disabled={isSyncing !== 'idle'}
+                                            className="flex-1 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-md"
+                                        >
+                                            <Icon name={isSyncing === 'downloading' ? 'sync' : 'cloud_download'} className={`text-sm ${isSyncing === 'downloading' ? 'animate-spin' : ''}`} /> 
+                                            {isSyncing === 'downloading' ? 'Descargando...' : 'Restaurar'}
+                                        </button>
+                                    </div>
+                                    <button 
+                                        onClick={() => { driveService.logout(); window.location.reload(); }} 
+                                        className="w-full py-1.5 text-[10px] text-slate-400 hover:text-red-400 transition"
+                                    >
+                                        Cerrar sesión de Drive
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div>
                         <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Límites & Cuota de IA</h4>
                         <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mb-3">La cuota gratuita de Gemini es limitada. Puedes ver tus créditos y consumo real en tiempo real:</p>
-                            <a href="https://aistudio.google.com/app/plan_and_billing" target="_blank" rel="noopener noreferrer" className="w-full py-2 bg-slate-800 dark:bg-primary-900/30 text-primary-500 dark:text-primary-400 border border-primary-500/30 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-primary-500 hover:text-white transition">
-                                <Icon name="open_in_new" className="text-sm" /> Revisar en Google AI Studio
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mb-3 leading-tight">La cuota gratuita de Gemini es limitada. Revisa tus créditos en tiempo real:</p>
+                            <a href="https://aistudio.google.com/app/plan_and_billing" target="_blank" rel="noopener noreferrer" className="w-full py-2 bg-slate-800 dark:bg-primary-900/30 text-primary-500 dark:text-primary-400 border border-primary-500/30 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-primary-500 hover:text-white transition shadow-sm">
+                                <Icon name="open_in_new" className="text-sm" /> Google AI Studio
                             </a>
                         </div>
                     </div>
@@ -272,22 +323,6 @@ export const Dashboard = React.memo(() => {
                         <div className="grid grid-cols-2 gap-2">
                             <button onClick={() => { setSettingsOpen(false); setView('MAP'); }} className="p-3 bg-slate-100 dark:bg-slate-700/30 border border-slate-200 dark:border-slate-600/50 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-300 flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-600 transition"><Icon name="public" /> Mapa</button>
                             <button onClick={() => { setSettingsOpen(false); setView('MERGE'); }} className="p-3 bg-slate-100 dark:bg-slate-700/30 border border-slate-200 dark:border-slate-600/50 rounded-xl text-xs font-bold text-yellow-600 dark:text-yellow-300 flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-600 transition"><Icon name="merge" /> Fusión</button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Sincronización Nube</h4>
-                        <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-200 dark:border-blue-500/20">
-                            <div className="flex items-center gap-2 mb-2"><Icon name="cloud" className="text-blue-500 dark:text-blue-400" /><span className="text-xs font-bold text-blue-700 dark:text-blue-100">Google Drive</span></div>
-                            <div className={`p-2 rounded-lg mb-2 border ${isDynamicDomain ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-500/30' : 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-500/30'}`}>
-                                <div className="flex justify-between items-start mb-1"><p className={`text-[9px] font-bold flex items-center gap-1 ${isDynamicDomain ? 'text-red-700 dark:text-red-200' : 'text-yellow-700 dark:text-yellow-200'}`}><Icon name={isDynamicDomain ? "error" : "warning"} className="text-[10px]" /> {isDynamicDomain ? 'Dominio No Soportado' : 'Configurar Google Cloud:'}</p><button onClick={handleCopyOrigin} className={`text-[9px] px-2 py-0.5 rounded border font-bold ${isDynamicDomain ? 'bg-red-100 dark:bg-red-500/20 hover:bg-red-200 dark:hover:bg-red-500/40 text-red-700 dark:text-red-200 border-red-200 dark:border-red-500/30' : 'bg-yellow-100 dark:bg-yellow-500/20 hover:bg-yellow-200 dark:hover:bg-yellow-500/40 text-yellow-700 dark:text-yellow-200 border-yellow-200 dark:border-yellow-500/30'}`}>Copiar</button></div>
-                                <code className="block bg-black/5 dark:bg-black/50 p-1.5 rounded text-[9px] text-slate-600 dark:text-yellow-100 break-all font-mono select-all">{window.location.origin}</code>
-                            </div>
-                            {!isCloudConnected ? (
-                                <button onClick={connectCloud} disabled={isDynamicDomain} className={`w-full py-2 bg-white dark:bg-white text-dark-900 border border-slate-200 dark:border-transparent rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-200 transition ${isDynamicDomain ? 'opacity-50 cursor-not-allowed' : ''}`}><Icon name="login" className="text-sm" /> Conectar</button>
-                            ) : (
-                                <div className="space-y-2"><div className="flex justify-between text-[9px] text-slate-500 dark:text-slate-400"><span>Último sync:</span><span className="text-slate-700 dark:text-white">{cloudLastSync || 'Nunca'}</span></div><div className="flex gap-2"><button onClick={uploadToCloud} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Icon name="cloud_upload" className="text-sm" /> Subir</button><button onClick={downloadFromCloud} className="flex-1 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Icon name="cloud_download" className="text-sm" /> Restaurar</button></div></div>
-                            )}
                         </div>
                     </div>
 

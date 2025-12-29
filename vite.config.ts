@@ -15,7 +15,8 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       headers: {
-        'Cross-Origin-Opener-Policy': 'same-origin',
+        // 'same-origin-allow-popups' es crucial para que el popup de Google Auth funcione con COOP habilitado
+        'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
         'Cross-Origin-Embedder-Policy': 'require-corp',
       },
     },

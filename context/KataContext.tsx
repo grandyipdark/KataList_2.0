@@ -21,7 +21,7 @@ interface KataContextType {
   currency: string; accentColor: string; 
   scoreScale: ScoreScaleType; 
   userProfile: UserProfile; showConfetti: boolean;
-  isCloudConnected: boolean; cloudLastSync: string | null;
+  isCloudConnected: boolean; cloudLastSync: string | null; isSyncing: string;
   installPrompt: any; // PWA Install Prompt
 
   // Actions
@@ -130,7 +130,7 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   } = useTastingData(showToast, setViewWrapper);
 
   // Hook 2: Cloud
-  const { isCloudConnected, cloudLastSync, connectCloud, uploadToCloud, downloadFromCloud } = useCloudSync(showToast, exportData, importData);
+  const { isCloudConnected, cloudLastSync, isSyncing, connectCloud, uploadToCloud, downloadFromCloud } = useCloudSync(showToast, exportData, importData);
 
 
   // --- Initialization & Preferences ---
@@ -144,12 +144,10 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Light Mode Logic
       const savedLight = localStorage.getItem('katalist_light');
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (savedLight === 'true') {
           setIsLightMode(true);
           document.documentElement.classList.remove('dark');
       } else {
-          // Default to Dark if not specified or specified false
           setIsLightMode(false);
           document.documentElement.classList.add('dark');
       }
@@ -188,28 +186,6 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
   }, [installPrompt]);
 
-  // --- Wrappers for Actions with Side Effects (Backup Reminder) ---
-  const checkBackupReminder = useCallback(() => {
-      setUnsavedChanges(prev => {
-          const next = prev + 1;
-          if (next >= 10) {
-              showToast("¡Exporta un Backup!", 'info');
-              return 0;
-          }
-          return next;
-      });
-  }, [showToast]);
-
-  const saveTastingWrapped = useCallback(async (t: Tasting) => { await saveTasting(t); checkBackupReminder(); }, [saveTasting, checkBackupReminder]);
-  const deleteTastingWrapped = useCallback(async (id: string) => { await deleteTasting(id); checkBackupReminder(); }, [deleteTasting, checkBackupReminder]);
-  const duplicateTastingWrapped = useCallback(async (t: Tasting) => { await duplicateTasting(t); checkBackupReminder(); }, [duplicateTasting, checkBackupReminder]);
-  const duplicateTastingAsVintageWrapped = useCallback(async (t: Tasting) => { const id = await duplicateTastingAsVintage(t); checkBackupReminder(); return id; }, [duplicateTastingAsVintage, checkBackupReminder]);
-  const updateCategoriesWrapped = useCallback(async (c: Category[]) => { await updateCategories(c); checkBackupReminder(); }, [updateCategories, checkBackupReminder]);
-  const updateTagsWrapped = useCallback(async (o: string, n: string | null) => { await updateTags(o, n); checkBackupReminder(); }, [updateTags, checkBackupReminder]);
-  const toggleFavoriteWrapped = useCallback(async (t: Tasting) => { await toggleFavorite(t); checkBackupReminder(); }, [toggleFavorite, checkBackupReminder]);
-  const renameProducerWrapped = useCallback(async (o: string, n: string) => { await renameProducer(o, n); checkBackupReminder(); }, [renameProducer, checkBackupReminder]);
-
-  // --- Settings Logic ---
   const applyAccentColor = useCallback((hex: string) => {
       setAccentColorState(hex);
       document.documentElement.style.setProperty('--color-primary-500', hex);
@@ -239,19 +215,16 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setAccentColor = useCallback((c: string) => { vibrate(); applyAccentColor(c); localStorage.setItem('katalist_accent', c); }, [applyAccentColor]);
   const setScoreScale = useCallback((s: ScoreScaleType) => { vibrate(); setScoreScaleState(s); localStorage.setItem('katalist_scale', s); }, []);
 
-  // --- Helper Score Formatter ---
   const formatScore = useCallback((score: number) => {
       if (scoreScale === '100') return Math.round(score * 10).toString();
       if (scoreScale === '5') return (score / 2).toFixed(1);
       return score.toString();
   }, [scoreScale]);
 
-  // --- Deletion Logic ---
   const confirmDelete = useCallback((id: string) => { vibrate(); setIdToDelete(id); setDeleteModalOpen(true); }, []);
-  const performDelete = useCallback(async () => { if (idToDelete) { await deleteTastingWrapped(idToDelete); setDeleteModalOpen(false); setIdToDelete(null); } }, [idToDelete, deleteTastingWrapped]);
+  const performDelete = useCallback(async () => { if (idToDelete) { await deleteTasting(idToDelete); setDeleteModalOpen(false); setIdToDelete(null); } }, [idToDelete, deleteTasting]);
   const removeToast = useCallback((id: number) => setToasts(prev => prev.filter(t => t.id !== id)), []);
 
-  // --- Derived State (Gamification & Tags) ---
   const prevLevelRef = useRef(1);
   const userProfile = useMemo(() => {
       if (isInitializing) return { level: 1, title: 'Curioso', xp: 0, nextLevelXp: 500, badges: [] };
@@ -269,13 +242,11 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return Array.from(new Set(tastings.flatMap(t => t.tags)));
   }, [tastings]);
 
-
-  // --- Context Composition ---
   const contextValue = useMemo(() => ({
       tastings, categories, userLists, selectedTasting, compareList,
       view, isInitializing, isOledMode, isLightMode, currency, accentColor, scoreScale,
       userProfile, showConfetti,
-      isCloudConnected, cloudLastSync,
+      isCloudConnected, cloudLastSync, isSyncing,
       installPrompt,
       
       setView: setViewWrapper,
@@ -284,15 +255,15 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       installApp,
       
       refreshData,
-      saveTasting: saveTastingWrapped,
-      deleteTasting: deleteTastingWrapped,
-      duplicateTasting: duplicateTastingWrapped,
-      duplicateTastingAsVintage: duplicateTastingAsVintageWrapped,
-      toggleFavorite: toggleFavoriteWrapped,
+      saveTasting,
+      deleteTasting,
+      duplicateTasting,
+      duplicateTastingAsVintage,
+      toggleFavorite,
       updateStock,
-      updateCategories: updateCategoriesWrapped,
-      updateTags: updateTagsWrapped,
-      renameProducer: renameProducerWrapped,
+      updateCategories,
+      updateTags,
+      renameProducer,
       optimizeTagsBulk,
       mergeTastings,
       
@@ -308,10 +279,10 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }), [
       tastings, categories, userLists, selectedTasting, compareList,
       view, isInitializing, isOledMode, isLightMode, currency, accentColor, scoreScale,
-      userProfile, showConfetti, isCloudConnected, cloudLastSync, installPrompt,
-      setViewWrapper, showToast, saveTastingWrapped, deleteTastingWrapped, duplicateTastingWrapped, 
-      duplicateTastingAsVintageWrapped, toggleFavoriteWrapped, updateStock, updateCategoriesWrapped, 
-      updateTagsWrapped, renameProducerWrapped, optimizeTagsBulk, mergeTastings, createList, deleteList, 
+      userProfile, showConfetti, isCloudConnected, cloudLastSync, isSyncing, installPrompt,
+      setViewWrapper, showToast, saveTasting, deleteTasting, duplicateTasting, 
+      duplicateTastingAsVintage, toggleFavorite, updateStock, updateCategories, 
+      updateTags, renameProducer, optimizeTagsBulk, mergeTastings, createList, deleteList, 
       addItemsToList, deleteTastingsBulk, importData, exportData, exportCSV, confirmDelete, toggleCompare, 
       clearCompare, connectCloud, uploadToCloud, downloadFromCloud, setSelectedTasting, refreshData, toggleOledMode, toggleLightMode, setCurrency, setAccentColor, setScoreScale, installApp, formatScore, allTags
   ]);

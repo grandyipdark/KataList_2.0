@@ -1,48 +1,85 @@
+
 import { CloudFile } from "../types";
 
 declare var google: any;
 
+// Credenciales vinculadas al proyecto KataList
 const CLIENT_ID = '472540050424-g4doacvt1pfe817tk9jtodcdcmfn62ui.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
 const BACKUP_FILENAME = 'katalist_backup.json';
 
-// Simple in-memory token storage
 let accessToken: string | null = null;
+let tokenClient: any = null;
 
 export const driveService = {
-    // 1. Initialize & Login
-    signIn: (): Promise<string> => {
+    // Inicializar el cliente de Google Identity Services
+    init: (): Promise<void> => {
         return new Promise((resolve, reject) => {
-            try {
-                if (typeof google === 'undefined') {
-                    reject("Google API no cargada. Revisa tu conexión.");
-                    return;
-                }
+            if (typeof google === 'undefined') {
+                reject("Google API no detectada. Revisa tu conexión a internet.");
+                return;
+            }
 
-                const client = google.accounts.oauth2.initTokenClient({
+            try {
+                tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: CLIENT_ID,
                     scope: SCOPES,
                     callback: (response: any) => {
-                        if (response.access_token) {
-                            accessToken = response.access_token;
-                            resolve(response.access_token);
-                        } else {
-                            reject("No se obtuvo token de acceso.");
+                        if (response.error) {
+                            reject(response.error);
+                            return;
                         }
+                        accessToken = response.access_token;
+                        // Guardamos una bandera de "conectado" pero no el token (por seguridad y expiración)
+                        localStorage.setItem('kata_cloud_connected', 'true');
+                        resolve();
                     },
                 });
-                client.requestAccessToken();
+                resolve();
             } catch (e) {
                 reject(e);
             }
         });
     },
 
+    signIn: (): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            if (!tokenClient) {
+                driveService.init().then(() => {
+                    tokenClient.requestAccessToken({ prompt: 'consent' });
+                }).catch(reject);
+            } else {
+                // Si ya tenemos tokenClient, pedimos acceso
+                tokenClient.callback = (response: any) => {
+                    if (response.access_token) {
+                        accessToken = response.access_token;
+                        localStorage.setItem('kata_cloud_connected', 'true');
+                        resolve(response.access_token);
+                    } else {
+                        reject("Permiso denegado por el usuario.");
+                    }
+                };
+                tokenClient.requestAccessToken();
+            }
+        });
+    },
+
+    logout: () => {
+        accessToken = null;
+        localStorage.removeItem('kata_cloud_connected');
+    },
+
     isAuthenticated: () => !!accessToken,
 
-    // 2. Find Backup File in AppDataFolder
     findBackupFile: async (): Promise<CloudFile | null> => {
-        if (!accessToken) throw new Error("No conectado a Drive.");
+        if (!accessToken) {
+            // Intento de re-autenticación silenciosa si la bandera existe
+            if (localStorage.getItem('kata_cloud_connected')) {
+                await driveService.signIn();
+            } else {
+                throw new Error("AUTH_REQUIRED");
+            }
+        }
 
         const query = `name = '${BACKUP_FILENAME}' and 'appDataFolder' in parents and trashed = false`;
         const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)&spaces=appDataFolder`;
@@ -51,18 +88,19 @@ export const driveService = {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
         
-        if (!res.ok) throw new Error("Error buscando archivo.");
+        if (res.status === 401) {
+            accessToken = null;
+            throw new Error("AUTH_EXPIRED");
+        }
+        
+        if (!res.ok) throw new Error("Error al buscar en Drive.");
         
         const data = await res.json();
-        if (data.files && data.files.length > 0) {
-            return data.files[0];
-        }
-        return null;
+        return (data.files && data.files.length > 0) ? data.files[0] : null;
     },
 
-    // 3. Upload (Create or Update)
     uploadBackup: async (jsonContent: string): Promise<void> => {
-        if (!accessToken) throw new Error("No conectado a Drive.");
+        if (!accessToken) await driveService.signIn();
 
         const existingFile = await driveService.findBackupFile();
         const fileMetadata = {
@@ -88,19 +126,18 @@ export const driveService = {
             body: form
         });
 
-        if (!res.ok) throw new Error("Error subiendo archivo.");
+        if (!res.ok) throw new Error("Fallo al subir el archivo.");
     },
 
-    // 4. Download
     downloadBackup: async (fileId: string): Promise<string> => {
-        if (!accessToken) throw new Error("No conectado a Drive.");
+        if (!accessToken) await driveService.signIn();
 
         const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
         const res = await fetch(url, {
             headers: { Authorization: `Bearer ${accessToken}` }
         });
 
-        if (!res.ok) throw new Error("Error descargando archivo.");
+        if (!res.ok) throw new Error("Fallo al descargar el archivo.");
         return await res.text();
     }
 };
