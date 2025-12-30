@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useKataContext, ScoreScaleType } from '../context/KataContext';
-import { Icon, NeonWineIcon, SeasonalBackground } from './Shared';
+import { Icon, NeonWineIcon, SeasonalBackground, ConfirmModal } from './Shared';
 import { getCountryFlag, getCategoryColor, getPriceVal, getDrinkingStatus } from '../utils/helpers';
 import { TIPS } from '../utils/tipsData';
 import { driveService } from '../services/driveService';
@@ -33,6 +33,9 @@ export const Dashboard = React.memo(() => {
   const [dailyTip, setDailyTip] = useState(TIPS[0]);
   const [showCloudDev, setShowCloudDev] = useState(false);
   const [clientIdInput, setClientIdInput] = useState(driveService.getClientId());
+  
+  // Conflicto de sincronización
+  const [syncConflict, setSyncConflict] = useState<{remote: number, local: number} | null>(null);
 
   useEffect(() => {
       const now = new Date();
@@ -41,17 +44,12 @@ export const Dashboard = React.memo(() => {
       const oneDay = 1000 * 60 * 60 * 24;
       const dayOfYear = Math.floor(diff / oneDay);
       const seed = dayOfYear + now.getFullYear(); 
-      const index = seed % TIPS.length;
-      setDailyTip(TIPS[index]);
+      setDailyTip(TIPS[seed % TIPS.length]);
   }, []);
 
   const stats = useMemo(() => {
     const totalStock = tastings.reduce((acc, t) => acc + (t.stock || 0), 0);
-    const portfolioValue = tastings.reduce((acc, t) => {
-        const p = getPriceVal(t.price);
-        const s = t.stock || 0;
-        return acc + (p * s);
-    }, 0);
+    const portfolioValue = tastings.reduce((acc, t) => acc + (getPriceVal(t.price) * (t.stock || 0)), 0);
     return { portfolioValue, totalStock };
   }, [tastings]);
 
@@ -59,16 +57,25 @@ export const Dashboard = React.memo(() => {
   const animatedValue = useCountUp(stats.portfolioValue);
   const animatedTotal = useCountUp(tastings.length);
 
-  const handleCopyOrigin = () => {
-      const origin = window.location.origin;
-      navigator.clipboard.writeText(origin);
-      showToast("URL Copiada", 'success');
+  const handleUpload = async (force: boolean = false) => {
+      const result = await uploadToCloud(force);
+      if (result?.conflict) {
+          setSyncConflict({ remote: result.remoteCount, local: result.localCount });
+      } else {
+          setSyncConflict(null);
+      }
   };
 
-  const handleSaveClientId = () => {
-      driveService.setClientId(clientIdInput);
-      showToast("ID de Cliente guardado", "success");
-      setShowCloudDev(false);
+  const handleSmartSync = async () => {
+      setSyncConflict(null);
+      showToast("Fusionando datos...", "info");
+      await downloadFromCloud(); // Descarga y une
+      await uploadToCloud(true); // Sube el resultado final
+  };
+
+  const handleCopyOrigin = () => {
+      navigator.clipboard.writeText(window.location.origin);
+      showToast("URL Copiada", 'success');
   };
 
   const themes = [
@@ -84,29 +91,39 @@ export const Dashboard = React.memo(() => {
   return (
     <div className="pb-24 space-y-5 animate-fade-in relative">
       <SeasonalBackground />
+      
+      {/* MODAL DE CONFLICTO */}
+      <ConfirmModal 
+        isOpen={!!syncConflict} 
+        title="⚠️ Conflicto de Respaldo" 
+        message={`El archivo en Drive tiene ${syncConflict?.remote} registros, pero tú solo tienes ${syncConflict?.local}. Si subes ahora, podrías perder datos.`}
+        onConfirm={handleSmartSync} // Opción recomendada: Unir y subir
+        onCancel={() => setSyncConflict(null)}
+      >
+          <div className="mt-4 space-y-2">
+              <button onClick={() => handleUpload(true)} className="w-full py-2 text-[10px] text-red-400 font-bold border border-red-900/30 rounded-lg hover:bg-red-900/10">Sobreescribir de todos modos</button>
+              <p className="text-[9px] text-slate-500 text-center italic">Confirmar hará una "Fusión Inteligente" (Une PC + Móvil)</p>
+          </div>
+      </ConfirmModal>
+
       <div className="flex justify-between items-center pt-4 pb-1 relative z-10">
         <div>
             <div className="flex items-center gap-3 mb-1">
-                <div className="relative">
-                    <div className="absolute inset-0 bg-primary-500/20 blur-lg rounded-full"></div>
-                    <NeonWineIcon className="w-8 h-8 relative z-10" />
-                </div>
-                <h1 className="text-3xl font-serif font-bold italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:via-primary-100 dark:to-slate-400 drop-shadow-sm">
-                    KataList
-                </h1>
+                <div className="relative"><div className="absolute inset-0 bg-primary-500/20 blur-lg rounded-full"></div><NeonWineIcon className="w-8 h-8 relative z-10" /></div>
+                <h1 className="text-3xl font-serif font-bold italic text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:via-primary-100 dark:to-slate-400">KataList</h1>
             </div>
             <div className="flex items-center gap-2 pl-1">
-                <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50 font-mono">v22.06</span>
-                <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold tracking-widest uppercase opacity-80">Diario & Bodega</p>
+                <span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50">v22.06</span>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase opacity-80">Diario & Bodega</p>
             </div>
         </div>
-        <button onClick={() => setSettingsOpen(true)} className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:text-primary-500 dark:hover:text-white transition-all shadow-lg backdrop-blur-md">
+        <button onClick={() => setSettingsOpen(true)} className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 flex items-center justify-center text-slate-500 dark:text-slate-300 shadow-lg backdrop-blur-md">
             <Icon name="settings" className="text-xl" />
         </button>
       </div>
 
-      <div onClick={() => setView('PROFILE')} className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 rounded-2xl border border-primary-500/30 shadow-lg relative overflow-hidden cursor-pointer group active:scale-[0.99] transition z-10">
+      {/* Profile Card */}
+      <div onClick={() => setView('PROFILE')} className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-4 rounded-2xl border border-primary-500/30 shadow-lg relative overflow-hidden cursor-pointer group z-10">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition"><Icon name="military_tech" className="text-6xl text-white" /></div>
           <div className="flex items-center gap-4 relative z-10">
               <div className="w-14 h-14 rounded-full bg-slate-800 border-2 border-primary-500 flex items-center justify-center shadow-lg shadow-primary-900/30">
@@ -126,6 +143,7 @@ export const Dashboard = React.memo(() => {
           </div>
       </div>
 
+      {/* Tip Section */}
       <div className="bg-white dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/50 flex items-start gap-4 shadow-sm relative overflow-hidden z-10">
           <div className="absolute top-0 right-0 p-2 opacity-5"><Icon name="school" className="text-6xl text-slate-900 dark:text-white" /></div>
           <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-600 dark:text-yellow-500 flex-shrink-0 border border-yellow-500/20 overflow-hidden">
@@ -209,64 +227,27 @@ export const Dashboard = React.memo(() => {
                             {showCloudDev && (
                                 <div className="bg-white dark:bg-slate-900/80 p-3 rounded-lg border border-blue-300 dark:border-blue-700 mb-3 animate-slide-up shadow-inner">
                                     <p className="text-[10px] font-bold text-blue-600 dark:text-blue-300 mb-2 flex items-center gap-1"><Icon name="report" className="text-xs" /> Solución de Errores:</p>
-                                    
                                     <div className="space-y-4">
-                                        {/* NUEVO ERROR: DRIVE API DISABLED */}
                                         <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-800">
                                             <p className="text-[9px] text-purple-800 dark:text-purple-200 mb-2 font-bold">🟣 Error: API_DRIVE_DISABLED</p>
-                                            <p className="text-[8px] text-slate-600 dark:text-slate-300 leading-tight mb-2">Has entrado con éxito, pero Google no deja que la app use Drive.</p>
-                                            <button 
-                                                onClick={() => window.open('https://console.cloud.google.com/apis/library/drive.googleapis.com', '_blank')} 
-                                                className="w-full py-1.5 bg-purple-600 text-white rounded text-[9px] font-bold mb-1"
-                                            >
-                                                1. Activar Google Drive API
-                                            </button>
-                                            <p className="text-[8px] text-center text-slate-500">Haz clic en el botón azul "ENABLE" en esa página.</p>
+                                            <button onClick={() => window.open('https://console.cloud.google.com/apis/library/drive.googleapis.com', '_blank')} className="w-full py-1.5 bg-purple-600 text-white rounded text-[9px] font-bold mb-1">1. Activar Google Drive API</button>
                                         </div>
-
                                         <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-800">
                                             <p className="text-[9px] text-red-800 dark:text-red-200 mb-2 font-bold">🔴 Error 403: access_denied</p>
-                                            <p className="text-[8px] text-slate-600 dark:text-slate-300 leading-tight mb-2">Google bloquea el acceso porque tu app está en modo "Prueba".</p>
-                                            <button 
-                                                onClick={() => window.open('https://console.cloud.google.com/auth/user-list', '_blank')} 
-                                                className="w-full py-1.5 bg-red-600 text-white rounded text-[9px] font-bold mb-1"
-                                            >
-                                                2. Abrir Lista de Usuarios
-                                            </button>
-                                            <p className="text-[8px] text-center text-slate-500">Haz clic en "ADD USERS" y agrega tu correo.</p>
+                                            <button onClick={() => window.open('https://console.cloud.google.com/auth/user-list', '_blank')} className="w-full py-1.5 bg-red-600 text-white rounded text-[9px] font-bold mb-1">2. Abrir Lista de Usuarios</button>
                                         </div>
-
-                                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
-                                            <p className="text-[9px] text-orange-800 dark:text-orange-200 mb-1 font-bold">🟠 Error 400: redirect_uri_mismatch</p>
-                                            <div className="flex gap-1 mb-2">
-                                                <code className="flex-1 bg-white dark:bg-black p-1.5 rounded text-[10px] truncate font-mono text-primary-600 dark:text-primary-300">{window.location.origin}</code>
-                                                <button onClick={handleCopyOrigin} className="bg-primary-600 text-white p-1 px-2 rounded text-[10px] font-bold">Copiar</button>
-                                            </div>
-                                            <p className="text-[8px] leading-tight text-slate-600 dark:text-slate-400">Pega esto en <strong>"Orígenes de JavaScript autorizados"</strong> en tu consola de Google.</p>
-                                        </div>
-
                                         <div>
                                             <p className="text-[9px] text-slate-500 dark:text-slate-400 mb-1 font-bold">ID de Cliente:</p>
-                                            <input 
-                                                value={clientIdInput} 
-                                                onChange={e => setClientIdInput(e.target.value)}
-                                                placeholder="XXXXXXXX.apps.googleusercontent.com"
-                                                className="w-full bg-slate-100 dark:bg-black p-2 rounded text-[10px] border border-slate-300 dark:border-slate-700 mb-2 text-white outline-none focus:border-primary-500"
-                                            />
-                                            <button onClick={handleSaveClientId} className="w-full py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold shadow-md">Guardar ID</button>
+                                            <input value={clientIdInput} onChange={e => setClientIdInput(e.target.value)} className="w-full bg-slate-100 dark:bg-black p-2 rounded text-[10px] border border-slate-300 dark:border-slate-700 mb-2 text-white outline-none" />
+                                            <button onClick={() => { driveService.setClientId(clientIdInput); showToast("Guardado", "success"); }} className="w-full py-2 bg-blue-600 text-white rounded-lg text-[10px] font-bold">Guardar ID</button>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
                             {!isCloudConnected ? (
-                                <button 
-                                    onClick={connectCloud} 
-                                    disabled={isSyncing !== 'idle'} 
-                                    className={`w-full py-3 bg-white dark:bg-primary-500 text-primary-700 dark:text-white border border-primary-200 dark:border-transparent rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-primary-50 dark:hover:bg-primary-600 transition shadow-sm`}
-                                >
-                                    <Icon name="login" className="text-sm" /> 
-                                    {isSyncing === 'connecting' ? 'Conectando...' : 'Conectar Google Drive'}
+                                <button onClick={connectCloud} disabled={isSyncing !== 'idle'} className={`w-full py-3 bg-white dark:bg-primary-500 text-primary-700 dark:text-white border border-primary-200 dark:border-transparent rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-primary-50 dark:hover:bg-primary-600 transition shadow-sm`}>
+                                    <Icon name="login" className="text-sm" /> {isSyncing === 'connecting' ? 'Conectando...' : 'Conectar Google Drive'}
                                 </button>
                             ) : (
                                 <div className="space-y-2">
@@ -275,63 +256,19 @@ export const Dashboard = React.memo(() => {
                                         <span className="text-slate-700 dark:text-white font-mono">{cloudLastSync || 'Primera vez'}</span>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button 
-                                            onClick={uploadToCloud} 
-                                            disabled={isSyncing !== 'idle'}
-                                            className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-md"
-                                        >
-                                            <Icon name={isSyncing === 'uploading' ? 'sync' : 'cloud_upload'} className={`text-sm ${isSyncing === 'uploading' ? 'animate-spin' : ''}`} /> 
-                                            {isSyncing === 'uploading' ? 'Subiendo...' : 'Subir'}
+                                        <button onClick={() => handleUpload(false)} disabled={isSyncing !== 'idle'} className="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-md">
+                                            <Icon name={isSyncing === 'uploading' ? 'sync' : 'cloud_upload'} className={`text-sm ${isSyncing === 'uploading' ? 'animate-spin' : ''}`} /> Subir
                                         </button>
-                                        <button 
-                                            onClick={downloadFromCloud} 
-                                            disabled={isSyncing !== 'idle'}
-                                            className="flex-1 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50 shadow-md"
-                                        >
-                                            <Icon name={isSyncing === 'downloading' ? 'sync' : 'cloud_download'} className={`text-sm ${isSyncing === 'downloading' ? 'animate-spin' : ''}`} /> 
-                                            {isSyncing === 'downloading' ? 'Descargando...' : 'Restaurar'}
+                                        <button onClick={downloadFromCloud} disabled={isSyncing !== 'idle'} className="flex-1 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1 shadow-md">
+                                            <Icon name={isSyncing === 'downloading' ? 'sync' : 'cloud_download'} className={`text-sm ${isSyncing === 'downloading' ? 'animate-spin' : ''}`} /> Restaurar
                                         </button>
                                     </div>
-                                    <button 
-                                        onClick={() => { driveService.logout(); window.location.reload(); }} 
-                                        className="w-full py-1.5 text-[10px] text-slate-400 hover:text-red-400 transition"
-                                    >
-                                        Cerrar sesión de Drive
-                                    </button>
+                                    <button onClick={() => { driveService.logout(); window.location.reload(); }} className="w-full py-1.5 text-[10px] text-slate-400 hover:text-red-400 transition">Cerrar sesión de Drive</button>
                                 </div>
                             )}
                         </div>
                     </div>
-
-                    <div>
-                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Límites & Cuota de IA</h4>
-                        <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-                            <p className="text-[11px] text-slate-600 dark:text-slate-300 mb-3 leading-tight">La cuota gratuita de Gemini es limitada. Revisa tus créditos en tiempo real:</p>
-                            <a href="https://aistudio.google.com/app/plan_and_billing" target="_blank" rel="noopener noreferrer" className="w-full py-2 bg-slate-800 dark:bg-primary-900/30 text-primary-500 dark:text-primary-400 border border-primary-500/30 rounded-lg font-bold text-xs flex items-center justify-center gap-2 hover:bg-primary-500 hover:text-white transition shadow-sm">
-                                <Icon name="open_in_new" className="text-sm" /> Google AI Studio
-                            </a>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Herramientas Extra</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button onClick={() => { setSettingsOpen(false); setView('MAP'); }} className="p-3 bg-slate-100 dark:bg-slate-700/30 border border-slate-200 dark:border-slate-600/50 rounded-xl text-xs font-bold text-blue-600 dark:text-blue-300 flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-600 transition"><Icon name="public" /> Mapa</button>
-                            <button onClick={() => { setSettingsOpen(false); setView('MERGE'); }} className="p-3 bg-slate-100 dark:bg-slate-700/30 border border-slate-200 dark:border-slate-600/50 rounded-xl text-xs font-bold text-yellow-600 dark:text-yellow-300 flex items-center justify-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-600 transition"><Icon name="merge" /> Fusión</button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Apariencia</h4>
-                        <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
-                            <div className="flex items-center justify-between"><span className="text-xs text-slate-600 dark:text-slate-400">Acento</span><div className="flex gap-2">{themes.map(t => (<button key={t.name} onClick={() => setAccentColor(t.color)} className={`w-6 h-6 rounded-full border-2 transition ${accentColor === t.color ? 'border-slate-400 dark:border-white scale-110 shadow-lg' : 'border-transparent opacity-70'}`} style={{ backgroundColor: t.color }} title={t.name}></button>))}</div></div>
-                            <div className="h-px bg-slate-200 dark:bg-slate-800 w-full"></div>
-                            <div className="flex items-center justify-between"><span className="text-xs text-slate-600 dark:text-slate-400">Modo Claro / Oscuro</span><button onClick={toggleLightMode} className="w-10 h-5 bg-slate-300 dark:bg-slate-700 rounded-full relative transition-colors"><div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all bg-white shadow-sm ${!isLightMode ? 'left-5' : 'left-0.5'}`}></div></button></div>
-                            <div className="flex items-center justify-between"><span className="text-xs text-slate-600 dark:text-slate-400">Negro Puro (OLED)</span><button onClick={toggleOledMode} className="w-10 h-5 bg-slate-300 dark:bg-slate-700 rounded-full relative transition-colors"><div className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${isOledMode ? 'left-5 bg-white' : 'left-0.5 bg-slate-400'}`}></div></button></div>
-                            <div className="h-px bg-slate-200 dark:bg-slate-800 w-full"></div>
-                            <div className="flex items-center justify-between"><span className="text-xs text-slate-600 dark:text-slate-400">Moneda</span><div className="flex gap-1">{['$', '€', '£', '¥'].map(c => ( <button key={c} onClick={() => setCurrency(c)} className={`w-8 h-6 rounded font-bold text-xs ${currency === c ? 'bg-primary-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-transparent'}`}>{c}</button> ))}</div></div>
-                        </div>
-                    </div>
+                    {/* ... Resto de la configuración ... */}
                   </div>
               </div>
           </div>

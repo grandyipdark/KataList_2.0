@@ -1,38 +1,34 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { driveService } from '../services/driveService';
+import { Tasting } from '../types';
 
 export const useCloudSync = (
     showToast: (msg: string, type: 'success' | 'error' | 'info') => void,
     exportData: (includeImages: boolean) => Promise<string>,
-    importData: (json: string) => Promise<boolean>
+    importData: (json: string) => Promise<boolean>,
+    localTastings: Tasting[]
 ) => {
     const [isCloudConnected, setIsCloudConnected] = useState(false);
     const [cloudLastSync, setCloudLastSync] = useState<string | null>(null);
-    const [isSyncing, setIsSyncing] = useState<'idle' | 'connecting' | 'uploading' | 'downloading'>('idle');
+    const [isSyncing, setIsSyncing] = useState<'idle' | 'connecting' | 'uploading' | 'downloading' | 'syncing'>('idle');
 
     const connectCloud = useCallback(async () => {
         setIsSyncing('connecting');
         try {
             await driveService.signIn();
-            
             const file = await driveService.findBackupFile();
             setIsCloudConnected(true);
             showToast("Conectado a Google Drive", 'success');
-            
             if (file) {
                 setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
-                showToast("Copia de seguridad encontrada", 'info');
             }
         } catch (e: any) {
-            console.error("Cloud Connection Error:", e);
             setIsCloudConnected(false);
-            
             if (e.message === "API_DRIVE_DISABLED") {
                 showToast("Falta activar 'Google Drive API' en la consola", 'error');
             } else {
-                const errorMsg = typeof e === 'string' ? e : (e.error || "Error de conexión");
-                showToast(errorMsg, 'error');
+                showToast("Error de conexión", 'error');
             }
         } finally {
             setIsSyncing('idle');
@@ -47,32 +43,41 @@ export const useCloudSync = (
                     setIsCloudConnected(true);
                     if (file) setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
                 })
-                .catch(() => {
-                    // Si falla silenciosamente al inicio es normal (token caducado)
-                });
+                .catch(() => {});
         }
     }, []);
 
-    const uploadToCloud = useCallback(async () => {
+    const uploadToCloud = useCallback(async (force: boolean = false) => {
         if (isSyncing !== 'idle') return;
         setIsSyncing('uploading');
         try {
+            // 1. Verificar si existe un archivo y comparar conteo
+            const file = await driveService.findBackupFile();
+            if (file && !force) {
+                const remoteJson = await driveService.downloadBackup(file.id);
+                const remoteData = JSON.parse(remoteJson);
+                const remoteCount = remoteData.tastings?.length || 0;
+                const localCount = localTastings.length;
+
+                if (remoteCount > localCount) {
+                    setIsSyncing('idle');
+                    return { conflict: true, remoteCount, localCount };
+                }
+            }
+
+            // 2. Proceder con la subida
             const data = await exportData(true);
             await driveService.uploadBackup(data);
             setCloudLastSync(new Date().toLocaleString());
-            showToast("Copia de seguridad subida", 'success');
+            showToast("Respaldo actualizado", 'success');
+            return { success: true };
         } catch (e: any) {
-            console.error(e);
-            if (e.message === "AUTH_EXPIRED") {
-                showToast("Sesión caducada. Reconectando...", "info");
-                await connectCloud();
-            } else {
-                showToast("Fallo al subir datos", 'error');
-            }
+            showToast("Error al subir datos", 'error');
+            return { error: true };
         } finally {
             setIsSyncing('idle');
         }
-    }, [isSyncing, exportData, showToast, connectCloud]);
+    }, [isSyncing, exportData, showToast, localTastings]);
 
     const downloadFromCloud = useCallback(async () => {
         if (isSyncing !== 'idle') return;
@@ -83,19 +88,14 @@ export const useCloudSync = (
                 showToast("No hay archivos en la nube", 'error');
                 return;
             }
-            
             const json = await driveService.downloadBackup(file.id);
             const success = await importData(json);
-            
             if (success) {
                 setCloudLastSync(new Date(file.modifiedTime).toLocaleString());
-                showToast("Restauración completada", 'success');
-            } else {
-                showToast("Archivo corrupto o inválido", 'error');
+                showToast("Datos fusionados con éxito", 'success');
             }
-        } catch (e: any) {
-            console.error(e);
-            showToast("Error al descargar datos.", 'error');
+        } catch (e) {
+            showToast("Error al descargar", 'error');
         } finally {
             setIsSyncing('idle');
         }
