@@ -41,16 +41,6 @@ const SmartLoader = () => {
 
 const AppContent = () => {
     const { isInitializing } = useKataContext();
-    const navigate = useNavigate();
-    const location = useLocation();
-    
-    useEffect(() => {
-        if (!isInitializing) {
-            if (location.pathname !== '/' && location.pathname === '') {
-                navigate('/', { replace: true });
-            }
-        }
-    }, [isInitializing]); 
 
     if (isInitializing) return (
         <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center">

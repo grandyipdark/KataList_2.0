@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tasting, Category, UserList, ViewState, UserProfile } from '../types';
 import { useTastingData } from '../hooks/useTastingData';
 import { useCloudSync } from '../hooks/useCloudSync';
@@ -80,8 +81,8 @@ export const useKataContext = () => {
     return context;
 };
 
-// Main context provider for the application
 export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const navigate = useNavigate();
     const [isInitializing, setIsInitializing] = useState(true);
     const [view, setViewState] = useState<ViewState>('DASHBOARD');
     const [isOledMode, setIsOledMode] = useState(() => localStorage.getItem('kata_oled') === 'true');
@@ -94,20 +95,37 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [installPrompt, setInstallPrompt] = useState<any>(null);
 
-    // Toast logic fix for missing showToast references
     const showToast = useCallback((text: string, type: 'success' | 'error' | 'info' = 'info') => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, text, type }]);
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
     }, []);
 
+    // Función setView mejorada para manejar navegación real
     const setView = useCallback((v: ViewState) => {
         setViewState(v);
-        // Standard view navigation reset
-        window.scrollTo(0, 0);
-    }, []);
+        
+        const routeMap: Partial<Record<ViewState, string>> = {
+            'DASHBOARD': '/',
+            'SEARCH': '/search',
+            'NEW': '/new',
+            'AI_CHAT': '/chat',
+            'CATEGORIES': '/categories',
+            'PROFILE': '/profile',
+            'INSIGHTS': '/insights',
+            'CHEF': '/chef',
+            'MAP': '/map',
+            'MIXOLOGY': '/mixology',
+            'MERGE': '/merge'
+        };
 
-    // Hook 1: Data Management logic from useTastingData
+        if (routeMap[v]) {
+            navigate(routeMap[v]!);
+        }
+        
+        window.scrollTo(0, 0);
+    }, [navigate]);
+
     const { 
         tastings, categories, userLists, selectedTasting, compareList,
         setSelectedTasting, refreshData, saveTasting, deleteTasting, duplicateTasting, duplicateTastingAsVintage, toggleFavorite,
@@ -116,23 +134,21 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         exportData, importData, exportCSV, toggleCompare, clearCompare 
     } = useTastingData(showToast, setView);
 
-    // Hook 2: Cloud Synchronization logic from useCloudSync
     const { isCloudConnected, cloudLastSync, isSyncing, connectCloud, uploadToCloud, downloadFromCloud } = useCloudSync(showToast, exportData, importData, tastings);
 
-    // Derived logic for tags autocomplete
     const allTags = useMemo(() => {
         const tags = new Set<string>();
         tastings.forEach(t => t.tags.forEach(tag => tags.add(tag)));
         return Array.from(tags).sort();
     }, [tastings]);
 
-    // Derived User Profile from tastings
     const userProfile = useMemo(() => getUserProfile(tastings), [tastings]);
 
-    // DB Initialization and PWA install handling
     useEffect(() => {
         storageService.init().then(() => {
-            refreshData().then(() => setIsInitializing(false));
+            refreshData().then(() => {
+                setIsInitializing(false);
+            });
         });
 
         const handlePrompt = (e: any) => {
@@ -177,7 +193,7 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const setAccentColor = (c: string) => {
         setAccentColorState(c);
         localStorage.setItem('kata_accent', c);
-        document.documentElement.style.setProperty('--primary-500', c);
+        document.documentElement.style.setProperty('--color-primary-500', c);
     };
 
     const setScoreScale = (s: ScoreScaleType) => {

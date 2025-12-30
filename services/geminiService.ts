@@ -2,12 +2,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getAI = () => {
-  let key = process.env.API_KEY || '';
-  key = key.replace(/["']/g, '').trim();
-  if (!key || key === 'undefined' || key === '') {
+  // Always use direct process.env.API_KEY according to guidelines
+  if (!process.env.API_KEY) {
     throw new Error("Falta la API Key.");
   }
-  return new GoogleGenAI({ apiKey: key });
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 const cleanBase64 = (b64: string) => b64.replace(/^data:image\/(png|jpeg|webp);base64,/, "");
@@ -104,12 +103,15 @@ export const generateBeverageImage = async (options: { prompt: string, aspectRat
 
 export const analyzeLabelFromImage = async (imageBase64: string) => {
   const ai = getAI();
+  // Fixed contents format: should be an object with parts array
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: [
-      { inlineData: { mimeType: 'image/jpeg', data: cleanBase64(imageBase64) } },
-      { text: "Extrae JSON: {name, producer, category, country, abv, vintage}." }
-    ],
+    contents: {
+      parts: [
+        { inlineData: { mimeType: 'image/jpeg', data: cleanBase64(imageBase64) } },
+        { text: "Extrae JSON: {name, producer, category, country, abv, vintage}." }
+      ]
+    },
     config: { responseMimeType: 'application/json' }
   });
   return JSON.parse(response.text || "{}");
@@ -166,12 +168,15 @@ export const generateReviewFromTags = async (data: any) => {
 
 export const editBeverageImage = async (imageBase64: string, instruction: string) => {
   const ai = getAI();
+  // Fixed contents format: should be an object with parts array
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
-    contents: [
-      { inlineData: { mimeType: 'image/png', data: cleanBase64(imageBase64) } },
-      { text: instruction }
-    ]
+    contents: {
+      parts: [
+        { inlineData: { mimeType: 'image/png', data: cleanBase64(imageBase64) } },
+        { text: instruction }
+      ]
+    }
   });
   for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
