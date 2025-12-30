@@ -15,6 +15,7 @@ interface KataContextType {
     userLists: UserList[];
     selectedTasting: Tasting | null;
     compareList: string[];
+    allTags: string[];
     setSelectedTasting: (t: Tasting | null) => void;
     saveTasting: (t: Tasting) => Promise<void>;
     deleteTasting: (id: string) => Promise<void>;
@@ -118,6 +119,13 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Hook 2: Cloud Synchronization logic from useCloudSync
     const { isCloudConnected, cloudLastSync, isSyncing, connectCloud, uploadToCloud, downloadFromCloud } = useCloudSync(showToast, exportData, importData, tastings);
 
+    // Derived logic for tags autocomplete
+    const allTags = useMemo(() => {
+        const tags = new Set<string>();
+        tastings.forEach(t => t.tags.forEach(tag => tags.add(tag)));
+        return Array.from(tags).sort();
+    }, [tastings]);
+
     // Derived User Profile from tastings
     const userProfile = useMemo(() => getUserProfile(tastings), [tastings]);
 
@@ -185,7 +193,7 @@ export const KataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const confirmDelete = (id: string) => setDeleteConfirmId(id);
 
     const value = {
-        tastings, categories, userLists, selectedTasting, compareList,
+        tastings, categories, userLists, selectedTasting, compareList, allTags,
         setSelectedTasting, saveTasting, deleteTasting, duplicateTasting, duplicateTastingAsVintage, toggleFavorite,
         updateStock, updateCategories, updateTags, renameProducer, optimizeTagsBulk, mergeTastings,
         createList, deleteList, addItemsToList, deleteTastingsBulk,
