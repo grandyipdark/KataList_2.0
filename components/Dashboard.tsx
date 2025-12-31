@@ -89,7 +89,7 @@ export const Dashboard = React.memo(() => {
       <div className="flex justify-between items-center pt-4 pb-1 relative z-10">
         <div>
             <div className="flex items-center gap-3 mb-1"><div className="relative"><div className="absolute inset-0 bg-primary-500/20 blur-lg rounded-full"></div><NeonWineIcon className="w-8 h-8 relative z-10" /></div><h1 className="text-3xl font-serif font-bold italic text-transparent bg-clip-text bg-gradient-to-r from-slate-800 to-slate-500 dark:from-white dark:via-primary-100 dark:to-slate-400">KataList</h1></div>
-            <div className="flex items-center gap-2 pl-1"><span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50">v22.06</span><p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase opacity-80">Diario & Bodega</p></div>
+            <div className="flex items-center gap-2 pl-1"><span className="text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-primary-500 px-2 py-0.5 rounded-md border border-slate-300 dark:border-slate-700/50">v22.07</span><p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase opacity-80">Diario & Bodega</p></div>
         </div>
         <button onClick={() => setSettingsOpen(true)} className="w-12 h-12 rounded-2xl bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 flex items-center justify-center text-slate-500 dark:text-slate-300 shadow-lg backdrop-blur-md transition-all active:scale-95"><Icon name="settings" className="text-xl" /></button>
       </div>

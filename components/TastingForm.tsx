@@ -23,16 +23,22 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
-    const { saveTasting, showToast, tastings, selectedTasting } = useKataContext();
+    const { saveTasting, showToast, tastings, selectedTasting, setSelectedTasting } = useKataContext();
     const isNewMode = location.pathname === '/new';
 
     const [tasting, setTasting] = useState<Tasting>(() => {
         if (initialData) return initialData;
         if (!isNewMode && selectedTasting && selectedTasting.id === id) return selectedTasting;
+        
+        // Si es modo nuevo, intentamos cargar borrador o devolvemos vacío
         if (isNewMode) {
             const savedDraft = localStorage.getItem(DRAFT_KEY);
             if (savedDraft) {
-                try { return JSON.parse(savedDraft); } catch(e) {}
+                try { 
+                    const draft = JSON.parse(savedDraft);
+                    // Aseguramos que el borrador tenga un ID fresco si es necesario
+                    return draft;
+                } catch(e) {}
             }
         }
         return getEmptyTasting();
@@ -44,18 +50,16 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
     const [showExitConfirm, setShowExitConfirm] = useState(false);
     const [cooldownTimer, setCooldownTimer] = useState(0);
 
-    // CRITICAL FIX: Reset form when switching to /new
+    // Carga de imágenes en modo edición
     useEffect(() => {
-        if (isNewMode && !initialData) {
-            const savedDraft = localStorage.getItem(DRAFT_KEY);
-            if (savedDraft) {
-                try { setTasting(JSON.parse(savedDraft)); } catch(e) { setTasting(getEmptyTasting()); }
-            } else {
-                setTasting(getEmptyTasting());
-            }
-            setIsDirty(false);
+        if (!isNewMode && id && selectedTasting && selectedTasting.id === id) {
+             const loadImages = async () => {
+                const loaded = await Promise.all(selectedTasting.images.map(img => storageService.getImage(img)));
+                setTasting(prev => ({ ...prev, images: loaded.filter(Boolean) as string[] }));
+            };
+            loadImages();
         }
-    }, [isNewMode, initialData]);
+    }, [id, selectedTasting, isNewMode]);
 
     useEffect(() => {
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -80,23 +84,14 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         return () => clearInterval(interval);
     }, [cooldownTimer, loadingState]);
 
+    // Autoguardado de borrador (Solo en modo nuevo)
     useEffect(() => {
-        if (id) return; 
+        if (!isNewMode || !isDirty) return; 
         const timeout = setTimeout(() => {
             if (tasting.name || tasting.notes) localStorage.setItem(DRAFT_KEY, JSON.stringify(tasting));
-        }, 2000); 
+        }, 1000); 
         return () => clearTimeout(timeout);
-    }, [tasting, id]);
-
-    useEffect(() => {
-        if (selectedTasting && !isNewMode && selectedTasting.id === id) {
-             const loadImages = async () => {
-                const loaded = await Promise.all(selectedTasting.images.map(img => storageService.getImage(img)));
-                setTasting(prev => ({ ...prev, images: loaded.filter(Boolean) as string[] }));
-            };
-            loadImages();
-        }
-    }, [selectedTasting, isNewMode, id]);
+    }, [tasting, isNewMode, isDirty]);
 
     const toggleSection = (s: typeof activeSection) => setActiveSection(activeSection === s ? 'MAIN' : s);
     
@@ -124,7 +119,7 @@ export const TastingForm = React.memo(({ initialData, onCancel }: { initialData?
         if (!tasting.category) return showToast("Selecciona una categoría", "error"); 
         setLoadingState('uploading'); 
         await saveTasting({ ...tasting, updatedAt: Date.now() }); 
-        localStorage.removeItem(DRAFT_KEY); // Clean up draft on success
+        localStorage.removeItem(DRAFT_KEY); 
         setIsDirty(false);
         setLoadingState('idle'); 
     };

@@ -41,22 +41,23 @@ const SmartLoader = () => {
 
 const AppContent = () => {
     const { isInitializing } = useKataContext();
+    const location = useLocation();
 
     if (isInitializing) return (
         <div className="min-h-screen bg-dark-950 flex flex-col items-center justify-center">
             <NeonWineIcon className="w-16 h-16 animate-pulse" />
-            <p className="text-slate-400 mt-4 font-serif animate-pulse">Iniciando KataList v22.06...</p>
+            <p className="text-slate-400 mt-4 font-serif animate-pulse">Iniciando KataList v22.07...</p>
         </div>
     );
 
     return (
         <AppLayout>
             <Suspense fallback={<SmartLoader />}>
-                <Routes>
+                <Routes location={location} key={location.pathname.split('/')[1]}>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/search" element={<TastingList />} />
-                    <Route path="/new" element={<TastingForm />} />
-                    <Route path="/edit/:id" element={<TastingForm />} />
+                    <Route path="/new" element={<TastingForm key="new-tasting" />} />
+                    <Route path="/edit/:id" element={<TastingForm key={location.pathname} />} />
                     <Route path="/tasting/:id" element={<TastingDetail />} />
                     <Route path="/categories" element={<CategoriesManager />} />
                     <Route path="/chat" element={<EauxDeVieChat />} />
