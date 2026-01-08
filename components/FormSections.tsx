@@ -41,7 +41,7 @@ export const MediaSection = React.memo(({ tasting, setTasting, handleFile, handl
                         <SafeImage src={img} className="w-full h-full object-cover" alt="Tasting" />
                         {editImgIndex === i && (
                             <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-2 z-20 animate-fade-in">
-                                <input value={editInstruction} onChange={e => setEditInstruction(e.target.value)} placeholder="Ej: Quitar fondo" className="w-full text-xs bg-slate-800 p-1 rounded mb-2 text-white border border-slate-600" />
+                                <input autoComplete="off" value={editInstruction} onChange={e => setEditInstruction(e.target.value)} placeholder="Ej: Quitar fondo" className="w-full text-xs bg-slate-800 p-1 rounded mb-2 text-white border border-slate-600" />
                                 <div className="flex gap-2">
                                     <button onClick={() => setEditImgIndex(null)} className="text-xs text-slate-400 hover:text-white">Cancel</button>
                                     <button onClick={async () => { await handleEditImage(i, editInstruction); setEditImgIndex(null); setEditInstruction(''); }} className="text-xs bg-purple-600 px-2 py-1 rounded text-white">OK</button>
@@ -73,7 +73,7 @@ export const MediaSection = React.memo(({ tasting, setTasting, handleFile, handl
             
             <div className="bg-slate-100 dark:bg-dark-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                 <div className="flex gap-2">
-                    <input value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} placeholder="Generar con IA (vacío = usar nombre)" className="flex-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs" />
+                    <input autoComplete="off" value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} placeholder="Generar con IA (vacío = usar nombre)" className="flex-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white text-xs" />
                     <button onClick={async () => { await handleGenImage(aiPrompt); setAiPrompt(''); }} disabled={isLoading} className="bg-purple-600 px-3 rounded-lg text-white active:scale-95 transition flex items-center justify-center min-w-[44px]">
                         {isLoading ? <span className="animate-spin text-sm">⌛</span> : <Icon name="brush" />}
                     </button>
@@ -101,7 +101,7 @@ export const MainSection = React.memo(({ tasting, handleChange, handleAutoFill, 
         <div className="space-y-4">
             <div className="flex flex-col gap-1">
                 <div className="flex gap-2">
-                    <input value={tasting.name} onChange={e => handleChange('name', e.target.value)} placeholder="Nombre de la bebida" className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:border-primary-500" />
+                    <input autoComplete="off" name={`drink_name_${tasting.id}`} value={tasting.name} onChange={e => handleChange('name', e.target.value)} placeholder="Nombre de la bebida" className="flex-1 bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none focus:border-primary-500" />
                     <button onClick={handleAutoFill} disabled={isLoading || !tasting.name} className="w-12 h-12 flex items-center justify-center bg-purple-600 rounded-xl text-white active:scale-95 transition">
                         {isLoading ? <span className="animate-spin">⌛</span> : <Icon name="auto_awesome" />}
                     </button>
@@ -114,24 +114,24 @@ export const MainSection = React.memo(({ tasting, handleChange, handleAutoFill, 
                 <button onClick={() => handleChange('isWishlist', !tasting.isWishlist)} className={`w-12 h-6 rounded-full relative transition-colors ${tasting.isWishlist ? 'bg-purple-600' : 'bg-slate-400 dark:bg-slate-600'}`}><div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${tasting.isWishlist ? 'left-7' : 'left-1'}`}></div></button>
             </div>
 
-            <input value={tasting.producer || ''} onChange={e => handleChange('producer', e.target.value)} placeholder="Productor / Bodega" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
+            <input autoComplete="off" name={`producer_${tasting.id}`} value={tasting.producer || ''} onChange={e => handleChange('producer', e.target.value)} placeholder="Productor / Bodega" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
             
             <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className="text-[10px] text-slate-500 ml-1">Categoría</label>
-                    <select value={tasting.category} onChange={e => handleChange('category', e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none appearance-none">
+                    <select autoComplete="off" value={tasting.category} onChange={e => handleChange('category', e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none appearance-none">
                         <option value="" disabled>Seleccionar...</option>
                         {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
                 </div>
                 <div>
                     <label className="text-[10px] text-slate-500 ml-1">Estilo</label>
-                    <input list="subcats_datalist" value={tasting.subcategory} onChange={e => handleChange('subcategory', e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" placeholder="Tipo..." />
+                    <input autoComplete="off" list="subcats_datalist" value={tasting.subcategory} onChange={e => handleChange('subcategory', e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" placeholder="Tipo..." />
                     <datalist id="subcats_datalist">{categoryObj?.subcategories.map((s, i) => <option key={`${s}-${i}`} value={s} />)}</datalist>
                 </div>
             </div>
-            <input value={tasting.variety || ''} onChange={e => handleChange('variety', e.target.value)} placeholder="Variedad (Uva, Lúpulo, Grano...)" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
-            <div className="grid grid-cols-2 gap-3"><input value={tasting.country} onChange={e => handleChange('country', e.target.value)} placeholder="País" className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" /><input value={tasting.region} onChange={e => handleChange('region', e.target.value)} placeholder="Región" className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" /></div>
+            <input autoComplete="off" name={`variety_${tasting.id}`} value={tasting.variety || ''} onChange={e => handleChange('variety', e.target.value)} placeholder="Variedad (Uva, Lúpulo, Grano...)" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
+            <div className="grid grid-cols-2 gap-3"><input autoComplete="off" name={`country_${tasting.id}`} value={tasting.country} onChange={e => handleChange('country', e.target.value)} placeholder="País" className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" /><input autoComplete="off" name={`region_${tasting.id}`} value={tasting.region} onChange={e => handleChange('region', e.target.value)} placeholder="Región" className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" /></div>
         </div>
     );
 });
@@ -152,34 +152,34 @@ export const TechSection = React.memo(({ tasting, handleChange }: TechSectionPro
             <div className="grid grid-cols-3 gap-3">
                 <div>
                     <label className="text-[10px] text-slate-500">Añada</label>
-                    <select value={tasting.vintage || ''} onChange={e => handleChange('vintage', e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none appearance-none">
+                    <select autoComplete="off" value={tasting.vintage || ''} onChange={e => handleChange('vintage', e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none appearance-none">
                         <option value="" disabled>...</option>
                         {vintageOptions.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                 </div>
                 <div>
                     <label className="text-[10px] text-slate-500">ABV %</label>
-                    <input type="number" inputMode="decimal" value={tasting.abv} onChange={e => handleChange('abv', e.target.value)} placeholder="%" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
+                    <input autoComplete="off" type="number" inputMode="decimal" value={tasting.abv} onChange={e => handleChange('abv', e.target.value)} placeholder="%" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
                 </div>
                 <div>
                     <label className="text-[10px] text-slate-500">Precio ({currency})</label>
-                    <input type="number" inputMode="decimal" value={tasting.price} onChange={e => handleChange('price', e.target.value)} placeholder={currency} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
+                    <input autoComplete="off" type="number" inputMode="decimal" value={tasting.price} onChange={e => handleChange('price', e.target.value)} placeholder={currency} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
                 </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-                <input value={tasting.batch || ''} onChange={e => handleChange('batch', e.target.value)} placeholder="Lote / Botella" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
+                <input autoComplete="off" value={tasting.batch || ''} onChange={e => handleChange('batch', e.target.value)} placeholder="Lote / Botella" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
                 <div className="flex items-center h-[46px] bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-300 dark:border-slate-700 px-2 gap-2">
                     <button onClick={() => handleChange('stock', Math.max(0, (tasting.stock||0)-1))} className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white flex items-center justify-center">-</button>
-                    <input type="number" value={tasting.stock || 0} onChange={e => handleChange('stock', parseInt(e.target.value) || 0)} className="flex-1 text-center font-bold text-slate-900 dark:text-white bg-transparent outline-none w-8" />
+                    <input autoComplete="off" type="number" value={tasting.stock || 0} onChange={e => handleChange('stock', parseInt(e.target.value) || 0)} className="flex-1 text-center font-bold text-slate-900 dark:text-white bg-transparent outline-none w-8" />
                     <button onClick={() => handleChange('stock', (tasting.stock||0)+1)} className="w-8 h-8 rounded-lg bg-primary-600 text-white flex items-center justify-center">+</button>
                 </div>
             </div>
-            <input value={tasting.location || ''} onChange={e => handleChange('location', e.target.value)} placeholder="Lugar de Compra / Consumo" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
+            <input autoComplete="off" value={tasting.location || ''} onChange={e => handleChange('location', e.target.value)} placeholder="Lugar de Compra / Consumo" className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none" />
             <div className="bg-slate-100 dark:bg-dark-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                 <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase">Potencial de Guarda</h4>
                 <div className="grid grid-cols-2 gap-3">
-                    <input type="number" value={tasting.drinkFrom || ''} onChange={e => handleChange('drinkFrom', e.target.value)} placeholder={`Desde (${currentYear})`} className="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none text-xs" />
-                    <input type="number" value={tasting.drinkTo || ''} onChange={e => handleChange('drinkTo', e.target.value)} placeholder="Hasta" className="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none text-xs" />
+                    <input autoComplete="off" type="number" value={tasting.drinkFrom || ''} onChange={e => handleChange('drinkFrom', e.target.value)} placeholder={`Desde (${currentYear})`} className="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none text-xs" />
+                    <input autoComplete="off" type="number" value={tasting.drinkTo || ''} onChange={e => handleChange('drinkTo', e.target.value)} placeholder="Hasta" className="w-full bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none text-xs" />
                 </div>
             </div>
         </div>
@@ -274,7 +274,7 @@ export const SensorySection = React.memo(({ tasting, handleChange, handleProfile
                                 <label className="text-[10px] font-bold text-slate-500 ml-1 uppercase">{field === 'notes' ? 'Conclusiones' : field}</label>
                                 <SpeechMic onResult={(t) => handleDictation(field as keyof Tasting, t)} />
                             </div>
-                            <textarea value={tasting[field as keyof Tasting] as string} onChange={e => handleChange(field as keyof Tasting, e.target.value)} placeholder={`Notas de ${field}...`} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none min-h-[60px] text-sm" />
+                            <textarea autoComplete="off" value={tasting[field as keyof Tasting] as string} onChange={e => handleChange(field as keyof Tasting, e.target.value)} placeholder={`Notas de ${field}...`} className="w-full bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white outline-none min-h-[60px] text-sm" />
                         </div>
                     ))}
                 </div>

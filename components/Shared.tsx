@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, ReactNode, useRef } from 'react';
+import React, { Component, useState, useEffect, ReactNode, useRef } from 'react';
 import { ViewState, FlavorProfile } from '../types';
 import { vibrate } from '../utils/helpers';
 import { useKataContext } from '../context/KataContext';
@@ -314,8 +314,8 @@ export const SeasonalBackground = React.memo(() => {
 export interface ErrorBoundaryProps { children?: ReactNode; }
 export interface ErrorBoundaryState { hasError: boolean; }
 
-// Fix: Explicitly use React.Component to ensure props and state types are correctly inherited from the base React class
-export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// Fix: Explicitly use Component from React to ensure props and state types are correctly inherited from the base React class
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = { hasError: false };
   constructor(props: ErrorBoundaryProps) { super(props); }
   static getDerivedStateFromError() { return { hasError: true }; }
